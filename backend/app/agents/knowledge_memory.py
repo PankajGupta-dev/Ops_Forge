@@ -197,7 +197,7 @@ class KnowledgeMemoryAgent:
                 "causal_chain": [
                     "Traffic spiked by 400% during marketing promotion",
                     "Unbounded array accumulation in event logger caused heap OOM",
-                    "Container restarted by DigitalOcean health checker"
+                    "Container restarted by Railway health checker"
                 ],
                 "affected_signals": ["container_ram_percent", "restart_count"],
                 "selected_recovery_action": "Scale service replicas from 1 to 3 instances",
@@ -212,7 +212,7 @@ class KnowledgeMemoryAgent:
                     "verification_details": {"replicas": "3/3", "cpu_utilization": "34%"},
                     "operator_notes": "Scaling horizontally distributed traffic load effectively."
                 },
-                "tags": ["opsforge", "memory-leak", "autoscale", "digitalocean"],
+                "tags": ["opsforge", "memory-leak", "autoscale", "railway"],
                 "created_at": "2026-07-23T08:45:00Z"
             }
         ]

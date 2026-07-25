@@ -32,7 +32,7 @@ async def test_agent4_to_agent2_recovery_execution():
         title="Rollback Deployment",
         description="Rollback to previous deployment",
         steps=[
-            RecoveryStep(id="step-1", order=1, title="Rollback app spec", command="doctl apps update", verified=False, status="pending")
+            RecoveryStep(id="step-1", order=1, title="Rollback app spec", command="railway redeploy", verified=False, status="pending")
         ],
         risk_level="low",
         status=RecoveryStatus.APPROVAL_PENDING,

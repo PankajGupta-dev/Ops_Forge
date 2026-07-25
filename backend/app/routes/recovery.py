@@ -51,7 +51,7 @@ async def approve_action(action_id: str, request: RecoveryApprovalRequest) -> Re
     "/{action_id}/execute",
     response_model=RecoveryAction,
     summary="Execute approved recovery action",
-    description="Triggers deployment/restart/scale steps against DigitalOcean if the action was approved."
+    description="Triggers deployment/restart/scale steps against Railway if the action was approved."
 )
 async def execute_action(action_id: str) -> RecoveryAction:
     logger.info(f"POST /recovery/{action_id}/execute received.")
