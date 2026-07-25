@@ -92,33 +92,49 @@ export interface PipelineRequest {
 }
 
 export interface StageResult {
-  stage:       string;
-  status:      StageStatus;
-  startedAt:   string;
-  finishedAt?: string;
-  durationMs?: number;
-  data?:       Record<string, any>;
-  error?:      string;
+  stage:        string;
+  status:       StageStatus;
+  startedAt?:   string;
+  started_at?:  string;
+  finishedAt?:  string;
+  finished_at?: string;
+  durationMs?:  number;
+  duration_ms?: number;
+  data?:        Record<string, any>;
+  error?:       string;
 }
 
 export interface WorkflowResult {
-  traceId:              string;
-  workflowStatus:       WorkflowStatus;
-  stages:               StageResult[];
-  appName?:             string;
-  deploymentId?:        string;
-  appId?:               string;
-  liveUrl?:             string;
-  incidentDetected?:    boolean;
-  severity?:            string;
-  rootCause?:           string;
-  confidence?:          number;
-  recoveryActionId?:    string;
-  similarIncidentsFound?: number;
-  startedAt:            string;
-  finishedAt?:          string;
-  totalDurationMs?:     number;
-  error?:               string;
+  traceId:                  string;
+  trace_id?:                string;
+  workflowStatus:           WorkflowStatus;
+  workflow_status?:         WorkflowStatus;
+  stages:                   StageResult[];
+  appName?:                 string;
+  app_name?:                string;
+  deploymentId?:            string;
+  deployment_id?:           string;
+  appId?:                   string;
+  app_id?:                  string;
+  liveUrl?:                 string;
+  live_url?:                string;
+  incidentDetected?:        boolean;
+  incident_detected?:       boolean;
+  severity?:                string;
+  rootCause?:               string;
+  root_cause?:              string;
+  confidence?:              number;
+  recoveryActionId?:        string;
+  recovery_action_id?:      string;
+  similarIncidentsFound?:   number;
+  similar_incidents_found?: number;
+  startedAt:                string;
+  started_at?:              string;
+  finishedAt?:              string;
+  finished_at?:             string;
+  totalDurationMs?:         number;
+  total_duration_ms?:       number;
+  error?:                   string;
 }
 
 // ── Incident (backend: IncidentReport from incident.py) ──────────────────────

@@ -89,8 +89,8 @@ class DeploymentService:
 
         # Step 2: Prepare Railway Deployment Configuration
         try:
-            rw_project = await self.railway_client.create_project(name=plan.application.name)
-            project_id = rw_project.get("project", {}).get("id", f"rw-project-{plan.application.name}")
+            project_id = self.railway_client.get_project_id() or f"rw-project-{plan.application.name}"
+            logger.info(f"Using Railway project_id='{project_id}' for deployment of '{target_repo}' on branch '{target_branch}'.")
             rw_deploy = await self.railway_client.create_service_and_deploy(
                 project_id=project_id,
                 repo=target_repo,

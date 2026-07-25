@@ -73,7 +73,7 @@ export const pipelineService = {
       return mock;
     }
 
-    const result = await apiFetch<WorkflowResult>('/pipeline/run', {
+    const raw = await apiFetch<any>('/pipeline/run', {
       method: 'POST',
       body: JSON.stringify({
         description: request.description,
@@ -83,7 +83,10 @@ export const pipelineService = {
         simulate_failure: request.simulateFailure,
       }),
     });
-    pipelineCache.set(result.traceId, result);
+    const result = normalizeWorkflowResult(raw);
+    if (result.traceId) {
+      pipelineCache.set(result.traceId, result);
+    }
     return result;
   },
 
@@ -98,16 +101,68 @@ export const pipelineService = {
     if (USE_MOCKS) {
       throw new Error('Mock pipeline status: no cached result for ' + traceId);
     }
-    const result = await apiFetch<WorkflowResult>(`/pipeline/status/${encodeURIComponent(traceId)}`);
-    pipelineCache.set(traceId, result);
+    const raw = await apiFetch<any>(`/pipeline/status/${encodeURIComponent(traceId)}`);
+    const result = normalizeWorkflowResult(raw);
+    if (result.traceId) {
+      pipelineCache.set(result.traceId, result);
+    }
     return result;
   },
 
   /** Store a result in the session cache (called externally when needed). */
   cache(result: WorkflowResult): void {
-    pipelineCache.set(result.traceId, result);
+    const normalized = normalizeWorkflowResult(result);
+    if (normalized.traceId) {
+      pipelineCache.set(normalized.traceId, normalized);
+    }
   },
 };
+
+function normalizeWorkflowResult(raw: any): WorkflowResult {
+  if (!raw) return raw;
+  const traceId = raw.traceId || raw.trace_id || '';
+  const workflowStatus = raw.workflowStatus || raw.workflow_status || 'running';
+  const stages = (raw.stages || []).map((s: any) => ({
+    ...s,
+    startedAt: s.startedAt || s.started_at,
+    finishedAt: s.finishedAt || s.finished_at,
+    durationMs: s.durationMs ?? s.duration_ms,
+  }));
+
+  return {
+    ...raw,
+    traceId,
+    trace_id: traceId,
+    workflowStatus,
+    workflow_status: workflowStatus,
+    stages,
+    appName: raw.appName || raw.app_name,
+    app_name: raw.appName || raw.app_name,
+    deploymentId: raw.deploymentId || raw.deployment_id,
+    deployment_id: raw.deploymentId || raw.deployment_id,
+    appId: raw.appId || raw.app_id,
+    app_id: raw.appId || raw.app_id,
+    liveUrl: raw.liveUrl || raw.live_url,
+    live_url: raw.liveUrl || raw.live_url,
+    incidentDetected: raw.incidentDetected ?? raw.incident_detected,
+    incident_detected: raw.incidentDetected ?? raw.incident_detected,
+    severity: raw.severity,
+    rootCause: raw.rootCause || raw.root_cause,
+    root_cause: raw.rootCause || raw.root_cause,
+    confidence: raw.confidence,
+    recoveryActionId: raw.recoveryActionId || raw.recovery_action_id,
+    recovery_action_id: raw.recoveryActionId || raw.recovery_action_id,
+    similarIncidentsFound: raw.similarIncidentsFound ?? raw.similar_incidents_found,
+    similar_incidents_found: raw.similarIncidentsFound ?? raw.similar_incidents_found,
+    startedAt: raw.startedAt || raw.started_at,
+    started_at: raw.startedAt || raw.started_at,
+    finishedAt: raw.finishedAt || raw.finished_at,
+    finished_at: raw.finishedAt || raw.finished_at,
+    totalDurationMs: raw.totalDurationMs ?? raw.total_duration_ms,
+    total_duration_ms: raw.totalDurationMs ?? raw.total_duration_ms,
+    error: raw.error,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Deployment (local state management + backend for new deployments)

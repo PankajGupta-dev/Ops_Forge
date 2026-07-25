@@ -110,14 +110,30 @@ export default function DeploymentPlanner() {
         simulateFailure,
       });
 
+      const traceId = result.traceId || result.trace_id;
+      const status = (result.workflowStatus || result.workflow_status) === 'failed' ? 'failed' : 'healthy';
+
       // Patch local record with trace_id and pipeline status
       deploymentService.update(localDep.id, {
-        traceId: result.traceId,
-        status: result.workflowStatus === 'failed' ? 'failed' : 'healthy',
+        traceId,
+        status,
       });
 
+      // If pipeline failed or returned an error, show backend error and do not navigate
+      if (status === 'failed' || result.error) {
+        setError(result.error || 'Pipeline execution failed during stage run.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!traceId || traceId === 'undefined') {
+        setError('Pipeline execution returned invalid trace_id.');
+        setIsSubmitting(false);
+        return;
+      }
+
       // Navigate to pipeline visualization page using trace_id
-      navigate(`/deployments/${result.traceId}`);
+      navigate(`/deployments/${traceId}`);
     } catch (err: any) {
       setError(err?.message ?? 'Pipeline failed to start. Is the backend running?');
       setIsSubmitting(false);

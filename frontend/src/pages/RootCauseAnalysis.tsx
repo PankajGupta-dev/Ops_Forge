@@ -46,7 +46,7 @@ function workflowToRCA(workflow: WorkflowResult): RCAType {
     nodes,
     edges,
     narrative: rcaStage?.data?.summary ?? workflow.rootCause ?? '',
-    generatedAt: workflow.finishedAt ?? workflow.startedAt,
+    generatedAt: workflow.finishedAt ?? workflow.startedAt ?? new Date().toISOString(),
   };
 }
 
