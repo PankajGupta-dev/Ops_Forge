@@ -77,6 +77,20 @@ class PipelineBridgeService:
             )
             event_list.append(deploy_event)
 
+        log_list: List[LogEntry] = list(logs or [])
+        raw_logs = metadata.get("raw_logs", [])
+        if not log_list and raw_logs:
+            for item in raw_logs:
+                msg = item.get("message", "")
+                sev = item.get("severity", "ERROR").upper()
+                if msg:
+                    log_list.append(LogEntry(
+                        timestamp=datetime.now(timezone.utc),
+                        level=sev if sev in ("INFO", "WARN", "ERROR", "FATAL", "CRITICAL") else "ERROR",
+                        message=msg,
+                        source="railway_deploy"
+                    ))
+
         request = IncidentAnalysisRequest(
             trace_id=trace_id,
             app_id=app_id,
@@ -84,7 +98,7 @@ class PipelineBridgeService:
             app_name=app_name,
             deployment_status=status,
             infrastructure_metadata=metadata,
-            logs=logs or [],
+            logs=log_list,
             metrics=metrics or [],
             events=event_list
         )

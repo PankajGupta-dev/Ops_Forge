@@ -5,8 +5,10 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(usecwd=True))
 
 class Settings:
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    GEMINI_API_KEY: str = os.getenv("GROQ_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GROQ_MODEL", "") or os.getenv("GEMINI_MODEL", "llama-3.3-70b-versatile")
     BACKEND_PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
     BACKEND_HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
     RAILWAY_API_TOKEN: str = os.getenv("RAILWAY_API_TOKEN", "")

@@ -45,7 +45,7 @@ class ElevenLabsClient:
 
         logger.info(f"Sending TTS request to ElevenLabs (voice: {self.voice_id})")
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.post(url, json=payload, headers=headers)
 
             if response.status_code != 200:

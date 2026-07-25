@@ -9,6 +9,8 @@ logger = get_logger()
 TERMINAL_STATES = {"SUCCESS", "ACTIVE", "FAILED", "CRASHED", "TIMEOUT", "CANCELLED", "FAILED_TO_BUILD"}
 SUCCESS_STATES = {"SUCCESS", "ACTIVE"}
 FAILURE_STATES = {"FAILED", "CRASHED", "TIMEOUT", "CANCELLED", "FAILED_TO_BUILD"}
+# INACTIVE = service exists but no deployment has been triggered yet
+INACTIVE_STATE = "INACTIVE"
 
 class RailwayAPIError(Exception):
     """Raised when the Railway API returns an error or fails to respond."""
@@ -79,7 +81,7 @@ class RailwayClient:
         return self.service_id
 
     async def get_project_details(self, project_id: Optional[str] = None) -> Dict[str, Any]:
-        """Fetches environments and services for the project."""
+        """Fetches environments, services, service instances, deployments, and domains for the project."""
         pid = project_id or self.get_project_id()
         query = """
         query project($id: String!) {
@@ -104,9 +106,19 @@ class RailwayClient:
                                     node {
                                         id
                                         environmentId
+                                        source {
+                                            image
+                                            repo
+                                        }
+                                        latestDeployment {
+                                            id
+                                            status
+                                            url
+                                        }
                                         domains {
                                             serviceDomains {
                                                 domain
+                                                id
                                             }
                                         }
                                     }
@@ -120,6 +132,12 @@ class RailwayClient:
         """
         data = await self._query(query, {"id": pid})
         return data.get("project", {})
+
+    async def get_environment_id(self, project_id: Optional[str] = None) -> Optional[str]:
+        """Returns the first production environment ID for the project."""
+        proj = await self.get_project_details(project_id)
+        envs = proj.get("environments", {}).get("edges", [])
+        return envs[0]["node"]["id"] if envs else None
 
     async def update_service_image(self, image_tag: str, service_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -227,10 +245,11 @@ class RailwayClient:
                 break
 
         if not latest_dep:
+            # Service exists but has never been deployed — return INACTIVE (not SUCCESS)
             return {
                 "deployment": {
                     "id": f"dep-{sid[:8]}",
-                    "status": "SUCCESS",
+                    "status": INACTIVE_STATE,
                     "url": None
                 }
             }
@@ -253,7 +272,7 @@ class RailwayClient:
         """
         Polls Railway until the deployment reaches a terminal state.
         Terminal states: SUCCESS, FAILED, CRASHED, TIMEOUT, CANCELLED, FAILED_TO_BUILD.
-        Does not assume success.
+        INACTIVE = service has no deployment yet (e.g. GitHub not connected).
         """
         sid = service_id or self.get_service_id()
         start_time = asyncio.get_event_loop().time()
@@ -263,11 +282,11 @@ class RailwayClient:
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
-                logger.error(f"Railway deployment timed out after {timeout} seconds for service '{sid}'.")
+                logger.warning(f"Railway deployment polling timed out after {timeout} seconds for service '{sid}'.")
                 return {
                     "status": "TIMEOUT",
                     "deployment_id": f"dep-{sid[:8]}",
-                    "message": f"Deployment timed out after {timeout}s"
+                    "message": f"Deployment polling timed out after {timeout}s"
                 }
 
             try:
@@ -277,6 +296,15 @@ class RailwayClient:
                 dep_id = dep_info.get("id", f"dep-{sid[:8]}")
 
                 logger.info(f"Railway deployment '{dep_id}' current status: {current_status} (elapsed: {elapsed:.1f}s)")
+
+                if current_status == INACTIVE_STATE:
+                    # No deployment has been triggered — return immediately as INACTIVE
+                    return {
+                        "status": INACTIVE_STATE,
+                        "deployment_id": dep_id,
+                        "url": None,
+                        "message": "No deployment has been triggered for this service yet."
+                    }
 
                 if current_status in TERMINAL_STATES:
                     return {
@@ -334,6 +362,24 @@ class RailwayClient:
         """
         data = await self._query(mutation, {"id": deployment_id})
         return {"status": "success", "data": data}
+
+    async def get_deployment_logs(self, deployment_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Fetches deployment logs from Railway GraphQL API for a deployment ID."""
+        query = """
+        query deploymentLogs($deploymentId: String!, $limit: Int) {
+            deploymentLogs(deploymentId: $deploymentId, limit: $limit) {
+                timestamp
+                message
+                severity
+            }
+        }
+        """
+        try:
+            data = await self._query(query, {"deploymentId": deployment_id, "limit": limit})
+            return data.get("deploymentLogs", [])
+        except Exception as e:
+            logger.warning(f"Could not fetch deployment logs for '{deployment_id}' from Railway: {e}")
+            return []
 
     async def restart_service(self, service_id: Optional[str] = None) -> Dict[str, Any]:
         """Restarts a Railway service."""

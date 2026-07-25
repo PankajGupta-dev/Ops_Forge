@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from app.agents.deployment_planner import DeploymentPlannerAgent
 from app.agents.infra_deploy import InfraDeployAgent
 from app.agents.root_cause import RootCauseAgent
+from app.agents.knowledge_memory import KnowledgeMemoryAgent
 from app.schemas.deployment import PlannerRequest, DeploymentPlan, DeploymentResult
 from app.schemas.incident import IncidentAnalysisRequest, IncidentReport
 from app.schemas.recovery import RecoveryAction
@@ -97,10 +98,12 @@ class OrchestratorService:
         planner_agent: Optional[DeploymentPlannerAgent] = None,
         infra_agent: Optional[InfraDeployAgent] = None,
         rca_agent: Optional[RootCauseAgent] = None,
+        knowledge_agent: Optional[KnowledgeMemoryAgent] = None,
     ) -> None:
         self.planner_agent = planner_agent or DeploymentPlannerAgent()
         self.infra_agent = infra_agent or InfraDeployAgent()
         self.rca_agent = rca_agent or RootCauseAgent()
+        self.knowledge_agent = knowledge_agent or KnowledgeMemoryAgent()
 
     # ------------------------------------------------------------------
     # Main pipeline entry point
@@ -245,6 +248,30 @@ class OrchestratorService:
         except Exception as exc:
             stages.append(_stage_fail(stage_name, stage_start, str(exc)))
             return self._abort(trace_id, pipeline_started_at, stages, str(exc))
+
+        # ----------------------------------------------------------------
+        # Agent 3 → Agent 5: Store RCA incident in MongoDB Knowledge Base
+        # Runs regardless of SKIP_AGENT4 flag so every analysis is persisted.
+        # ----------------------------------------------------------------
+        try:
+            import asyncio as _asyncio
+            incident_record = await _asyncio.wait_for(
+                self.knowledge_agent.store_incident(
+                    report=report,
+                    outcome_success=True,
+                    operator_notes=f"Stored automatically by orchestrator | trace_id={trace_id}"
+                ),
+                timeout=10.0
+            )
+            logger.info(
+                f"[ORCHESTRATOR] Incident '{incident_record.id}' stored in MongoDB Knowledge Base | "
+                f"trace_id='{trace_id}'"
+            )
+        except Exception as store_exc:
+            logger.warning(
+                f"[ORCHESTRATOR] Non-fatal: Could not store incident in Knowledge Base: {store_exc} | "
+                f"trace_id='{trace_id}'"
+            )
 
         # ----------------------------------------------------------------
         # Stage 4: RECOVERY_PLAN — Agent 4 (via Agent 3 handoff) creates
