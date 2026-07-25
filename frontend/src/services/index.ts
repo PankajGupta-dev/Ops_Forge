@@ -78,6 +78,8 @@ export const pipelineService = {
       body: JSON.stringify({
         description: request.description,
         dockerfile: request.dockerfile,
+        repository: request.repository,
+        branch: request.branch,
         simulate_failure: request.simulateFailure,
       }),
     });
@@ -331,6 +333,28 @@ function incidentRecordToPostmortem(record: IncidentRecord): Postmortem {
 // Settings / Integrations
 // ---------------------------------------------------------------------------
 
+export const authService = {
+  async getRepos(): Promise<import('../types').RepositoryItem[]> {
+    if (USE_MOCKS) {
+      return [
+        { id: 1, name: 'demo-app', fullName: 'opsforge/demo-app', defaultBranch: 'main', visibility: 'public', cloneUrl: '' },
+        { id: 2, name: 'api-service', fullName: 'opsforge/api-service', defaultBranch: 'main', visibility: 'private', cloneUrl: '' },
+      ];
+    }
+    return apiFetch<import('../types').RepositoryItem[]>('/auth/repos');
+  },
+  async getBranches(owner: string, repo: string): Promise<import('../types').BranchItem[]> {
+    if (USE_MOCKS) {
+      return [
+        { name: 'main', protected: true },
+        { name: 'staging', protected: false },
+        { name: 'dev', protected: false },
+      ];
+    }
+    return apiFetch<import('../types').BranchItem[]>(`/auth/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`);
+  },
+};
+
 export const integrationService = {
   async getAll(): Promise<Integration[]> {
     if (USE_MOCKS) return Promise.resolve([...mockIntegrations]);
@@ -338,7 +362,7 @@ export const integrationService = {
     try {
       const health = await apiFetch<Record<string, any>>('/health');
       return mockIntegrations.map((item) => {
-        if (item.id === 'do' && health.agents?.agent_2 === 'active') {
+        if (item.id === 'railway' && health.agents?.agent_2 === 'active') {
           return { ...item, connected: true, status: 'Connected' };
         }
         if (item.id === 'mongo' && health.agents?.agent_5 === 'active') {

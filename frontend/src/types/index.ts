@@ -63,9 +63,27 @@ export interface LogEntry {
 
 // ── Pipeline (matches backend orchestration.py) ───────────────────────────────
 
+export interface RepositoryItem {
+  id:            number;
+  name:          string;
+  fullName:      string;
+  defaultBranch: string;
+  visibility:    string;
+  cloneUrl:      string;
+  htmlUrl?:      string;
+  description?:  string;
+}
+
+export interface BranchItem {
+  name:      string;
+  protected: boolean;
+}
+
 export interface PipelineRequest {
   description:     string;
   dockerfile:      string;
+  repository?:     string;
+  branch?:         string;
   simulateFailure: boolean;
 }
 

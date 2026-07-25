@@ -38,3 +38,10 @@ class RepositoryItem(BaseModel):
     clone_url: str = Field(..., description="HTTPS clone URL")
     html_url: Optional[str] = Field(None, description="GitHub repository web URL")
     description: Optional[str] = Field(None, description="Repository description")
+
+
+class BranchItem(BaseModel):
+    """GitHub branch representation returned by GET /auth/repos/{owner}/{repo}/branches."""
+    name: str = Field(..., description="Branch name (e.g., main, master, dev)")
+    protected: bool = Field(default=False, description="Whether branch is protected")
+

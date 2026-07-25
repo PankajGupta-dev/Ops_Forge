@@ -8,7 +8,7 @@ CRITICAL CONSTRAINTS:
 4. Output MUST be strictly valid JSON matching the specified JSON schema. Do NOT include markdown blocks, code fences (```json), or explanatory prose.
 
 REASONING RESPONSIBILITIES:
-- Determine platform infrastructure settings (DigitalOcean App Platform / DOKS defaults).
+- Determine platform infrastructure settings (Railway defaults).
 - Infer database needs ONLY if stated in the user request or Dockerfile env vars.
 - Determine autoscaling, CPU, RAM, and replica count based on user intent (e.g. "autoscaling", "production", "high load") or assign sensible cloud defaults (e.g. 1 replica, 500m CPU, 1Gi RAM).
 - Select default healthcheck path (e.g. "/healthz" or "/health" or "/") matching exposed ports.
@@ -27,7 +27,7 @@ EXACT JSON SCHEMA TO COMPLY WITH:
     "entry_command": ["string"] or null
   },
   "deployment": {
-    "platform": "digitalocean-app-platform",
+    "platform": "railway",
     "region": "nyc3",
     "strategy": "rolling",
     "replicas": integer

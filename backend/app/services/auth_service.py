@@ -11,7 +11,7 @@ import jwt
 from app.utils.config import settings
 from app.utils.logger import get_logger
 from app.integrations.mongodb_client import MongoDBAtlasClient
-from app.schemas.auth import UserProfile, RepositoryItem
+from app.schemas.auth import UserProfile, RepositoryItem, BranchItem
 
 logger = get_logger()
 
@@ -175,3 +175,31 @@ class AuthService:
                     )
                 )
             return items
+
+    @classmethod
+    async def fetch_repo_branches(cls, github_token: str, owner: str, repo: str) -> List[BranchItem]:
+        """Fetches available branches for a GitHub repository."""
+        url = f"https://api.github.com/repos/{owner}/{repo}/branches?per_page=100"
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "OpsForge-App",
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, headers=headers)
+            if response.status_code != 200:
+                logger.error(f"GitHub branches fetch failed: {response.text}")
+                raise ValueError("Failed to fetch branches from GitHub.")
+
+            branches_data = response.json()
+            items = []
+            for branch in branches_data:
+                items.append(
+                    BranchItem(
+                        name=branch["name"],
+                        protected=branch.get("protected", False),
+                    )
+                )
+            return items
+

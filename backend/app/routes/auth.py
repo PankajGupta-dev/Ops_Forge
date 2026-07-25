@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Header, status
 from fastapi.responses import RedirectResponse
 
-from app.schemas.auth import GitHubLoginResponse, AuthTokenResponse, UserProfile, RepositoryItem
+from app.schemas.auth import GitHubLoginResponse, AuthTokenResponse, UserProfile, RepositoryItem, BranchItem
 from app.services.auth_service import AuthService
 from app.utils.config import settings
 from app.utils.logger import get_logger
@@ -133,3 +133,40 @@ async def get_user_repos(authorization: Optional[str] = Header(None)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve repositories from GitHub."
         )
+
+
+@router.get("/repos/{owner}/{repo}/branches", response_model=List[BranchItem], summary="Get Repository Branches")
+async def get_repo_branches(owner: str, repo: str, authorization: Optional[str] = Header(None)):
+    """
+    Validates JWT token and fetches branches for a specific repository using the user's stored GitHub token.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header."
+        )
+
+    token = authorization.split(" ")[1]
+    try:
+        payload = AuthService.verify_jwt_token(token)
+        github_id = payload["github_id"]
+        user_doc = AuthService.get_user_by_github_id(github_id)
+        if not user_doc or not user_doc.get("github_token"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User GitHub access token not found. Please log in again."
+            )
+
+        github_token = user_doc["github_token"]
+        branches = await AuthService.fetch_repo_branches(github_token, owner, repo)
+        return branches
+
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching branches for {owner}/{repo}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve branches from GitHub."
+        )
+

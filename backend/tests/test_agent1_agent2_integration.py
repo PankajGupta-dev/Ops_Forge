@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.agents.deployment_planner import deployment_planner_agent
 from app.schemas.deployment import DeploymentPlan, ApplicationSpec, DeploymentConfig
-from app.integrations.digitalocean_client import DigitalOceanAPIError
+from app.integrations.railway_client import RailwayAPIError
 
 
 client = TestClient(app)
@@ -32,7 +32,7 @@ VALID_PLAN_PAYLOAD = {
         "exposed_ports": [8080]
     },
     "deployment": {
-        "platform": "digitalocean-app-platform",
+        "platform": "railway",
         "region": "nyc3",
         "strategy": "rolling",
         "replicas": 2
@@ -157,22 +157,18 @@ class TestAgent1Agent2Integration(unittest.TestCase):
         orig_create_app = deployment_planner_agent.infra_agent.deployment_service.client.create_app
 
         deployment_planner_agent.planner_service.generate_plan = AsyncMock(return_value=mock_plan)
-        deployment_planner_agent.infra_agent.deployment_service.client.create_app = AsyncMock(
-            side_effect=DigitalOceanAPIError("DigitalOcean API quota limit exceeded")
+        deployment_planner_agent.planner_service.generate_plan = AsyncMock(return_value=mock_plan)
+        deployment_planner_agent.infra_agent.deployment_service.railway_client.create_service_and_deploy = AsyncMock(
+            side_effect=RailwayAPIError("Railway API quota limit exceeded")
         )
 
         try:
-            request_payload = {
-                "description": "Deploy failing app",
-                "dockerfile": SAMPLE_DOCKERFILE
-            }
+            response = client.post("/deploy", json=VALID_PLAN_PAYLOAD)
 
-            response = client.post("/deploy", json=request_payload)
             self.assertEqual(response.status_code, 502)
-            self.assertIn("DigitalOcean infrastructure deployment failed: DigitalOcean API quota limit exceeded", response.json()["detail"])
+            self.assertIn("Railway infrastructure deployment failed: Railway API quota limit exceeded", response.json()["detail"])
         finally:
             deployment_planner_agent.planner_service.generate_plan = orig_generate
-            deployment_planner_agent.infra_agent.deployment_service.client.create_app = orig_create_app
 
     def test_logging_during_integration_flow(self):
         """

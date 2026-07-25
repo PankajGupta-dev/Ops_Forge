@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import DataTable from '../components/ui/DataTable';
 import StatusBadge from '../components/ui/StatusBadge';
-import { deploymentService, pipelineService } from '../services';
-import type { Deployment } from '../types';
+import { deploymentService, pipelineService, authService } from '../services';
+import type { Deployment, RepositoryItem, BranchItem } from '../types';
 
 const DEFAULT_DOCKERFILE = `FROM python:3.11-slim
 WORKDIR /app
@@ -22,15 +22,57 @@ export default function DeploymentPlanner() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [service, setService] = useState('api-gateway');
   const [environment, setEnvironment] = useState<'production' | 'staging' | 'development'>('production');
-  const [branch, setBranch] = useState('main');
   const [version, setVersion] = useState('v2.5.0');
   const [simulateFailure, setSimulateFailure] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // GitHub Repositories & Branches state
+  const [repos, setRepos] = useState<RepositoryItem[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<string>('');
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('main');
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
+
   useEffect(() => {
     deploymentService.getAll().then(setDeployments);
+
+    // Fetch user repositories from GET /auth/repos
+    setIsLoadingRepos(true);
+    authService.getRepos()
+      .then((data) => {
+        setRepos(data);
+        if (data.length > 0) {
+          setSelectedRepo(data[0].fullName);
+          setSelectedBranch(data[0].defaultBranch || 'main');
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch user repositories:', err);
+      })
+      .finally(() => setIsLoadingRepos(false));
   }, []);
+
+  // When selected repository changes, load branches
+  useEffect(() => {
+    if (!selectedRepo || !selectedRepo.includes('/')) return;
+    const [owner, repoName] = selectedRepo.split('/');
+    setIsLoadingBranches(true);
+    authService.getBranches(owner, repoName)
+      .then((data) => {
+        setBranches(data);
+        if (data.length > 0) {
+          setSelectedBranch(data[0].name);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch repository branches:', err);
+        setBranches([{ name: 'main', protected: false }]);
+        setSelectedBranch('main');
+      })
+      .finally(() => setIsLoadingBranches(false));
+  }, [selectedRepo]);
 
   const handleDeploy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,9 +90,9 @@ export default function DeploymentPlanner() {
     try {
       // Create a local deployment entry first (for history list)
       const localDep = await deploymentService.create({
-        service,
+        service: selectedRepo ? selectedRepo.split('/')[1] : service,
         environment,
-        branch,
+        branch: selectedBranch,
         version,
         status: 'deploying',
         commit: Math.random().toString(36).substring(2, 9),
@@ -61,6 +103,8 @@ export default function DeploymentPlanner() {
       const result = await pipelineService.run({
         description,
         dockerfile,
+        repository: selectedRepo,
+        branch: selectedBranch,
         simulateFailure,
       });
 
@@ -84,7 +128,7 @@ export default function DeploymentPlanner() {
       <div>
         <h1 className="font-headline text-headline-md text-on-surface">Deployment Planner</h1>
         <p className="font-body text-body-md text-on-surface-variant">
-          Trigger the full autonomous pipeline — from deployment plan to recovery approval
+          Trigger the full autonomous pipeline — from deployment plan to Railway + GitHub Actions
         </p>
       </div>
 
@@ -97,6 +141,52 @@ export default function DeploymentPlanner() {
           </h2>
 
           <form onSubmit={handleDeploy} className="flex flex-col gap-4">
+            {/* Repository Dropdown */}
+            <div>
+              <label className="label-caps block mb-1">Repository *</label>
+              <select
+                value={selectedRepo}
+                onChange={(e) => setSelectedRepo(e.target.value)}
+                className="input-base w-full"
+                disabled={isLoadingRepos}
+              >
+                {isLoadingRepos ? (
+                  <option value="">Loading repositories…</option>
+                ) : repos.length === 0 ? (
+                  <option value="opsforge/demo-app">opsforge/demo-app (Default)</option>
+                ) : (
+                  repos.map((r) => (
+                    <option key={r.id} value={r.fullName}>
+                      {r.fullName} ({r.visibility})
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            {/* Branch Dropdown */}
+            <div>
+              <label className="label-caps block mb-1">Branch *</label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="input-base w-full"
+                disabled={isLoadingBranches}
+              >
+                {isLoadingBranches ? (
+                  <option value="">Loading branches…</option>
+                ) : branches.length === 0 ? (
+                  <option value="main">main</option>
+                ) : (
+                  branches.map((b) => (
+                    <option key={b.name} value={b.name}>
+                      {b.name} {b.protected ? '🔒' : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
             {/* Description */}
             <div>
               <label className="label-caps block mb-1">Deployment Description *</label>
@@ -115,7 +205,7 @@ export default function DeploymentPlanner() {
               <textarea
                 value={dockerfile}
                 onChange={(e) => setDockerfile(e.target.value)}
-                className="input-base w-full h-48 resize-y font-mono text-xs leading-relaxed"
+                className="input-base w-full h-44 resize-y font-mono text-xs leading-relaxed"
                 placeholder="FROM node:20-alpine&#10;WORKDIR /app&#10;..."
                 required
               />
@@ -188,18 +278,6 @@ export default function DeploymentPlanner() {
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Branch */}
-                  <div>
-                    <label className="label-caps block mb-1 font-mono">Git Branch</label>
-                    <input
-                      type="text"
-                      value={branch}
-                      onChange={(e) => setBranch(e.target.value)}
-                      className="input-base"
-                      placeholder="main or feature/..."
-                    />
                   </div>
 
                   {/* Version */}

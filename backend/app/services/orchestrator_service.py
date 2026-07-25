@@ -139,6 +139,8 @@ class OrchestratorService:
             planner_request = PlannerRequest(
                 description=request.description,
                 dockerfile=request.dockerfile,
+                repository=request.repository,
+                branch=request.branch,
             )
             plan = await self.planner_agent.create_plan(planner_request)
             stages.append(
@@ -172,7 +174,11 @@ class OrchestratorService:
         stage_start = _now_iso()
         logger.info(f"[ORCHESTRATOR] Stage '{stage_name}' starting | trace_id='{trace_id}'")
         try:
-            result = await self.infra_agent.deployment_service.execute_deployment(plan)
+            result = await self.infra_agent.deployment_service.execute_deployment(
+                plan=plan,
+                repository=request.repository,
+                branch=request.branch
+            )
             # Inject the shared trace_id so all downstream stages can correlate
             result.trace_id = trace_id
             stages.append(
@@ -395,7 +401,7 @@ def _inject_failure_telemetry(
         LogEntry(
             timestamp=now - timedelta(seconds=30),
             level="ERROR",
-            message="Container restart triggered by DigitalOcean health checker (restart_count=3)",
+            message="Container restart triggered by Railway health checker (restart_count=3)",
             source="infra",
         ),
     ]
@@ -417,7 +423,7 @@ def _inject_failure_telemetry(
         DeploymentEvent(
             timestamp=now - timedelta(seconds=80),
             event_type="HEALTH_CHECK_FAILED",
-            description="DigitalOcean health check probe returned HTTP 503 — container marked unhealthy",
+            description="Railway health check probe returned HTTP 503 — container marked unhealthy",
             metadata={"probe_path": "/healthz", "http_status": 503, "consecutive_failures": 3},
         ),
         DeploymentEvent(

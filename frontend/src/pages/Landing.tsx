@@ -32,7 +32,7 @@ const FEATURES = [
   },
 ];
 
-const INTEGRATIONS = ['GitHub', 'DigitalOcean', 'MongoDB Atlas', 'ElevenLabs'];
+const INTEGRATIONS = ['GitHub', 'Railway', 'MongoDB Atlas', 'ElevenLabs'];
 
 const FOOTER_LINKS = [
   { heading: 'Product',  links: ['Features', 'Pricing', 'Documentation'] },

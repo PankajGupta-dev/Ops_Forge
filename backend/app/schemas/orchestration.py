@@ -49,6 +49,14 @@ class PipelineRequest(BaseModel):
         ...,
         description="Raw Dockerfile content to be parsed by Agent 1"
     )
+    repository: Optional[str] = Field(
+        None,
+        description="Selected GitHub repository full name (e.g. 'owner/repo')"
+    )
+    branch: Optional[str] = Field(
+        None,
+        description="Selected Git branch (e.g. 'main')"
+    )
     simulate_failure: bool = Field(
         default=True,
         description=(

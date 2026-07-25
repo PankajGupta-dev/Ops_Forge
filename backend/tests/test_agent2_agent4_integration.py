@@ -11,12 +11,11 @@ from app.services.recovery_service import RecoveryService, _recovery_actions
 @pytest.mark.asyncio
 async def test_agent4_to_agent2_recovery_execution():
     """Verify that Agent 4 sends approved recovery action to Agent 2 for validation and infrastructure execution."""
-    mock_do_client = MagicMock()
-    mock_do_client.rollback_deployment = AsyncMock(return_value={"status": "success"})
-    mock_do_client.restart_application = AsyncMock(return_value={"status": "success"})
-    mock_do_client.scale_service = AsyncMock(return_value={"status": "success"})
+    mock_rw_client = MagicMock()
+    mock_rw_client.redeploy_service = AsyncMock(return_value={"status": "success"})
+    mock_rw_client.restart_service = AsyncMock(return_value={"status": "success"})
 
-    deployment_service = DeploymentService(digitalocean_client=mock_do_client)
+    deployment_service = DeploymentService(railway_client=mock_rw_client)
     agent2 = InfraDeployAgent(deployment_service=deployment_service)
 
     recovery_service = RecoveryService(infra_agent=agent2)

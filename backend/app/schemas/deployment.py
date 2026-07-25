@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 class PlannerRequest(BaseModel):
     description: str = Field(..., description="User deployment intent (e.g. 'Deploy with PostgreSQL and autoscaling')")
     dockerfile: str = Field(..., description="Raw Dockerfile content")
+    repository: Optional[str] = Field(None, description="Selected GitHub repository (owner/repo)")
+    branch: Optional[str] = Field(None, description="Selected Git branch")
 
 class ApplicationSpec(BaseModel):
     name: str = Field(..., description="Application or service identifier")
@@ -16,7 +18,7 @@ class ApplicationSpec(BaseModel):
     entry_command: Optional[List[str]] = Field(None, description="Entry command / CMD elements")
 
 class DeploymentConfig(BaseModel):
-    platform: str = Field(default="digitalocean-app-platform", description="Target cloud deployment platform")
+    platform: str = Field(default="railway", description="Target cloud deployment platform")
     region: str = Field(default="nyc3", description="Target deployment region slug")
     strategy: str = Field(default="rolling", description="Deployment strategy (rolling, canary, blue-green)")
     replicas: int = Field(default=1, ge=1, description="Desired instance replica count")
@@ -76,4 +78,6 @@ class DeploymentResult(BaseModel):
 class DeployRequest(BaseModel):
     description: str = Field(..., description="User deployment intent")
     dockerfile: str = Field(..., description="Raw Dockerfile content")
+    repository: Optional[str] = Field(None, description="Selected GitHub repository (owner/repo)")
+    branch: Optional[str] = Field(None, description="Selected Git branch")
 

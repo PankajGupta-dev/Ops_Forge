@@ -10,7 +10,7 @@ from app.schemas.incident import IncidentReport, RecoveryCategory, IncidentStatu
 from app.schemas.recovery import RecoveryAction, RecoveryStep, RecoveryStatus, RecoveryApprovalRequest
 from app.integrations.gemini_client import GeminiClient
 from app.integrations.elevenlabs_client import ElevenLabsClient
-from app.integrations.digitalocean_client import DigitalOceanClient
+from app.integrations.railway_client import RailwayClient
 from app.agents.knowledge_memory import KnowledgeMemoryAgent
 from app.utils.logger import get_logger
 
@@ -26,13 +26,13 @@ class RecoveryService:
         self,
         gemini_client: Optional[GeminiClient] = None,
         elevenlabs_client: Optional[ElevenLabsClient] = None,
-        digitalocean_client: Optional[DigitalOceanClient] = None,
+        railway_client: Optional[RailwayClient] = None,
         infra_agent: Optional[Any] = None,
         knowledge_agent: Optional[KnowledgeMemoryAgent] = None
     ) -> None:
         self.gemini_client = gemini_client or GeminiClient()
         self.el_client = elevenlabs_client or ElevenLabsClient()
-        self.do_client = digitalocean_client or DigitalOceanClient()
+        self.railway_client = railway_client or RailwayClient()
         self.infra_agent = infra_agent
         self.knowledge_agent = knowledge_agent or KnowledgeMemoryAgent()
 
@@ -63,9 +63,9 @@ class RecoveryService:
             risk_level = rec.risk if rec.risk in ["low", "medium", "high"] else "high"
             estimated_duration = f"{rec.estimated_ttm_minutes or 2} min"
             steps = [
-                RecoveryStep(id=f"{action_id}-1", order=1, title="Replicas scaled down & image reverted", command=f"doctl apps update {report.app_name} --spec rollback.yaml", verified=False, status="pending"),
-                RecoveryStep(id=f"{action_id}-2", order=2, title="Database connection pool patch applied", command="doctl databases pools configure --pool-size 15", verified=False, status="pending"),
-                RecoveryStep(id=f"{action_id}-3", order=3, title="Pods scaled up & readiness probes passing", command="kubectl rollout status deployment/web", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-1", order=1, title="Replicas scaled down & image reverted", command=f"railway redeploy --service {report.app_name}", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-2", order=2, title="Database connection pool patch applied", command="railway variables set POOL_SIZE=15", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-3", order=3, title="Pods scaled up & readiness probes passing", command="railway status", verified=False, status="pending"),
                 RecoveryStep(id=f"{action_id}-4", order=4, title="Post-recovery latency & error rate baseline verified", command=f"curl -s https://{report.app_name}.opsforge.dev/health", verified=False, status="pending")
             ]
         elif rec.category == RecoveryCategory.RESTART:
@@ -74,9 +74,9 @@ class RecoveryService:
             risk_level = rec.risk if rec.risk in ["low", "medium", "high"] else "low"
             estimated_duration = f"{rec.estimated_ttm_minutes or 1} min"
             steps = [
-                RecoveryStep(id=f"{action_id}-1", order=1, title="Trigger rolling restart of application instances", command=f"doctl apps create-deployment {report.app_name} --force-rebuild", verified=False, status="pending"),
-                RecoveryStep(id=f"{action_id}-2", order=2, title="Graceful termination of old processes", command="kubectl get pods -w", verified=False, status="pending"),
-                RecoveryStep(id=f"{action_id}-3", order=3, title="Verify database connections and readiness", command="kubectl exec -it db-0 -- pg_isready", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-1", order=1, title="Trigger rolling restart of application instances", command=f"railway restart --service {report.app_name}", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-2", order=2, title="Graceful termination of old processes", command="railway logs --latest", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-3", order=3, title="Verify database connections and readiness", command="railway status", verified=False, status="pending"),
                 RecoveryStep(id=f"{action_id}-4", order=4, title="Post-recovery latency & error rate baseline verified", command=f"curl -s https://{report.app_name}.opsforge.dev/health", verified=False, status="pending")
             ]
         elif rec.category in [RecoveryCategory.SCALE_UP, RecoveryCategory.MANUAL]:
@@ -85,9 +85,9 @@ class RecoveryService:
             risk_level = rec.risk if rec.risk in ["low", "medium", "high"] else "medium"
             estimated_duration = f"{rec.estimated_ttm_minutes or 3} min"
             steps = [
-                RecoveryStep(id=f"{action_id}-1", order=1, title="Fetch current resource specifications", command=f"doctl apps get {report.app_name}", verified=False, status="pending"),
-                RecoveryStep(id=f"{action_id}-2", order=2, title="Increase deployment replicas and resources", command=f"doctl apps update {report.app_name} --spec scale-up.yaml", verified=False, status="pending"),
-                RecoveryStep(id=f"{action_id}-3", order=3, title="Re-register backend servers in load balancer", command="doctl compute load-balancer update", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-1", order=1, title="Fetch current resource specifications", command=f"railway status", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-2", order=2, title="Increase deployment replicas and resources", command=f"railway scale --replicas 3", verified=False, status="pending"),
+                RecoveryStep(id=f"{action_id}-3", order=3, title="Re-register backend servers in load balancer", command="railway domain", verified=False, status="pending"),
                 RecoveryStep(id=f"{action_id}-4", order=4, title="Post-recovery latency & error rate baseline verified", command=f"curl -s https://{report.app_name}.opsforge.dev/health", verified=False, status="pending")
             ]
         else:
@@ -311,7 +311,7 @@ class RecoveryService:
                         report=cached_report,
                         action=action,
                         outcome_success=True,
-                        operator_notes=f"Recovery executed and verified via DigitalOcean platform."
+                        operator_notes=f"Recovery executed and verified via Railway platform."
                     ),
                     timeout=10.0
                 )

@@ -6,7 +6,7 @@ import { API_BASE_URL } from '../services/api';
 
 const CONNECTIONS = [
   { id: 'github', icon: 'code',  label: 'Connect GitHub repository',    sub: 'Source control & CI/CD' },
-  { id: 'do',     icon: 'cloud', label: 'Connect DigitalOcean account', sub: 'Cloud infrastructure' },
+  { id: 'railway', icon: 'cloud', label: 'Connect Railway account', sub: 'Cloud infrastructure' },
 ];
 
 export default function Login() {

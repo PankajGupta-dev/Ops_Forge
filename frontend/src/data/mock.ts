@@ -177,7 +177,7 @@ export const mockPostmortem: Postmortem = {
 
 export const mockIntegrations: Integration[] = [
   { id: 'github',   name: 'GitHub',       icon: 'code',            connected: true,  status: 'Connected', account: 'opsforge-org' },
-  { id: 'do',       name: 'DigitalOcean', icon: 'cloud',           connected: true,  status: 'Connected', account: 'opsforge-cluster-prod' },
+  { id: 'railway',  name: 'Railway',      icon: 'cloud',           connected: true,  status: 'Connected', account: 'opsforge-railway-prod' },
   { id: 'mongo',    name: 'MongoDB Atlas',icon: 'storage',         connected: false },
   { id: 'eleven',   name: 'ElevenLabs',   icon: 'record_voice_over', connected: false },
   { id: 'slack',    name: 'Slack',        icon: 'chat',            connected: false },
