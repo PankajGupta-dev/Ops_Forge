@@ -249,7 +249,56 @@ class OrchestratorService:
         # ----------------------------------------------------------------
         # Stage 4: RECOVERY_PLAN — Agent 4 (via Agent 3 handoff) creates
         #          a pending RecoveryAction with voice narration
+        #
+        # In development mode (SKIP_AGENT4=true), the pipeline stops here
+        # and returns the Agent 3 RCA result directly without invoking
+        # Agent 4. This allows verifying Agent 3 independently.
         # ----------------------------------------------------------------
+        from app.utils.config import settings as _cfg
+
+        if _cfg.SKIP_AGENT4:
+            logger.info(
+                f"[ORCHESTRATOR] SKIP_AGENT4=true — skipping RECOVERY_PLAN stage | "
+                f"trace_id='{trace_id}'"
+            )
+            stages.append(StageResult(
+                stage="RECOVERY_PLAN",
+                status=StageStatus.SKIPPED,
+                started_at=_now_iso(),
+                finished_at=_now_iso(),
+                duration_ms=0,
+                data={"reason": "SKIP_AGENT4=true (development mode)"},
+            ))
+
+            finished_at = _now_iso()
+            workflow = WorkflowResult(
+                trace_id=trace_id,
+                workflow_status=WorkflowStatus.COMPLETED,
+                stages=stages,
+                # Cross-stage summary
+                app_name=result.app_name or plan.application.name,
+                deployment_id=result.deployment_id,
+                app_id=result.app_id,
+                live_url=result.live_url,
+                incident_detected=(report.incident_status.value != "resolved"),
+                severity=str(report.severity.value) if hasattr(report.severity, "value") else str(report.severity),
+                root_cause=report.root_cause,
+                confidence=report.confidence,
+                similar_incidents_found=len(report.similar_incidents),
+                # Timing
+                started_at=pipeline_started_at,
+                finished_at=finished_at,
+                total_duration_ms=_ms_since(pipeline_started_at),
+            )
+
+            _workflow_cache[trace_id] = workflow
+            logger.info(
+                f"[ORCHESTRATOR] Pipeline completed (dev mode, Agent 4 skipped) | "
+                f"trace_id='{trace_id}' | duration_ms={workflow.total_duration_ms}"
+            )
+            return workflow
+
+        # --- Production path: invoke Agent 4 ---
         stage_name = "RECOVERY_PLAN"
         stage_start = _now_iso()
         logger.info(f"[ORCHESTRATOR] Stage '{stage_name}' starting | trace_id='{trace_id}'")

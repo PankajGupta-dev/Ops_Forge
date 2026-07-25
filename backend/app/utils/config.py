@@ -24,4 +24,7 @@ class Settings:
     JWT_SECRET: str = os.getenv("JWT_SECRET", "opsforge_default_jwt_secret_key_2026")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
 
+    # Development flags
+    SKIP_AGENT4: bool = os.getenv("SKIP_AGENT4", "false").lower() in ("true", "1", "yes")
+
 settings = Settings()
