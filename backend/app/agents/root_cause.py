@@ -1,10 +1,13 @@
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
+from fastapi import HTTPException
 
 from app.schemas.incident import IncidentAnalysisRequest, IncidentReport
+from app.schemas.recovery import RecoveryAction
 from app.services.telemetry_service import detect_incident, correlate
 from app.services.rca_service import RCAService
 from app.agents.knowledge_memory import KnowledgeMemoryAgent
+from app.agents.recovery_voice import RecoveryVoiceAgent
 from app.integrations.gemini_client import GeminiClient
 from app.utils.logger import get_logger
 
@@ -13,23 +16,26 @@ logger = get_logger()
 
 class RootCauseAgent:
     """
-    Agent 3 entry point (Integrated with Agent 5 Knowledge Memory).
+    Agent 3 entry point (Integrated with Agent 4 Recovery & Agent 5 Knowledge Memory).
 
     Accepts an IncidentAnalysisRequest, runs the full pipeline:
       1. Rule-based incident detection
       2. Signal correlation
       3. Agent 5 Atlas Vector Search lookup for similar historical incidents
       4. Gemini RCA analysis incorporating historical memory
-    Returns a validated IncidentReport for consumption by Agent 4.
+      5. Asynchronous handoff to Agent 4 (Recovery & Voice Approval)
+    Returns a validated IncidentReport or performs full handoff to Agent 4.
     """
 
     def __init__(
         self,
         gemini_client: Optional[GeminiClient] = None,
-        knowledge_agent: Optional[KnowledgeMemoryAgent] = None
+        knowledge_agent: Optional[KnowledgeMemoryAgent] = None,
+        recovery_agent: Optional[RecoveryVoiceAgent] = None
     ) -> None:
         self._rca_service = RCAService(gemini_client=gemini_client)
         self.knowledge_agent = knowledge_agent or KnowledgeMemoryAgent()
+        self.recovery_agent = recovery_agent or RecoveryVoiceAgent()
 
     async def run(self, request: IncidentAnalysisRequest) -> IncidentReport:
         """
@@ -97,3 +103,75 @@ class RootCauseAgent:
 
         return report
 
+    async def hand_off_to_recovery(
+        self,
+        report: IncidentReport,
+        timeout_seconds: float = 10.0
+    ) -> RecoveryAction:
+        """
+        Agent 3 -> Agent 4 Integration.
+
+        Asynchronously transfers the completed incident analysis payload to Agent 4 (Recovery & Voice Approval).
+        Transfers:
+          - Root cause (`report.root_cause`)
+          - Incident summary (`report.summary`)
+          - Severity (`report.severity`)
+          - Confidence score (`report.confidence`)
+          - Risk level & options (`report.recommendations`)
+          - Supporting evidence (`report.causal_chain`, `report.affected_signals`, `report.contributing_factors`, `report.warnings`)
+
+        Handles communication timeouts and validation failures gracefully.
+        """
+        if not report or not report.recommendations:
+            logger.error("Agent 3 -> Agent 4 Handoff Failed: IncidentReport contains no valid recovery recommendations.")
+            raise HTTPException(status_code=400, detail="Cannot hand off incident report without recovery recommendations.")
+
+        top_rec = min(report.recommendations, key=lambda r: r.rank)
+
+        logger.info(
+            f"[AUDIT LOG] trace_id='{report.trace_id}' | app_id='{report.app_id}' | deployment_id='{report.deployment_id}' | "
+            f"agent_name='Agent 3 (Telemetry & RCA)' | action='TRANSMIT_INCIDENT_REPORT_TO_AGENT4' | "
+            f"severity='{report.severity}' | confidence='{report.confidence}' | "
+            f"top_risk='{top_rec.risk}' | recommendations_count={len(report.recommendations)}"
+        )
+
+        try:
+            action = await asyncio.wait_for(
+                self.recovery_agent.create_recovery_plan(report),
+                timeout=timeout_seconds
+            )
+            logger.info(
+                f"Agent 3 -> Agent 4 Integration Success: Transferred incident analysis for deployment '{report.deployment_id}'. "
+                f"Generated RecoveryAction ID: '{action.id}' (Status: '{action.status}')."
+            )
+            return action
+        except asyncio.TimeoutError:
+            logger.error(f"Agent 3 -> Agent 4 Integration Error: Communication timed out after {timeout_seconds}s while creating recovery plan.")
+            raise HTTPException(
+                status_code=504,
+                detail=f"Communication timeout during Agent 3 to Agent 4 recovery handoff ({timeout_seconds}s limit)."
+            )
+        except HTTPException as exc:
+            raise exc
+        except Exception as exc:
+            logger.error(f"Agent 3 -> Agent 4 Integration Error: Handoff failed due to unexpected exception: {exc}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Agent 3 to Agent 4 integration communication failure: {str(exc)}"
+            )
+
+    async def run_with_recovery_handoff(
+        self,
+        request: IncidentAnalysisRequest,
+        timeout_seconds: float = 10.0
+    ) -> Tuple[IncidentReport, RecoveryAction]:
+        """
+        End-to-end Agent 3 -> Agent 4 Pipeline Execution.
+
+        1. Executes root cause analysis (Agent 3).
+        2. Automatically transfers the structured report to Agent 4.
+        3. Returns both the IncidentReport and the generated RecoveryAction.
+        """
+        report = await self.run(request)
+        action = await self.hand_off_to_recovery(report, timeout_seconds=timeout_seconds)
+        return report, action
