@@ -1,0 +1,157 @@
+/* ──────────────────────────────────────────────────────────
+   Google Fonts
+────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+/* ──────────────────────────────────────────────────────────
+   Tailwind directives
+────────────────────────────────────────────────────────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────
+   Base
+────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-on-surface font-body;
+    min-height: 100vh;
+  }
+
+  /* Scrollbar styling — dark, thin */
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-surface-container-high rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-outline-variant; }
+
+  /* Selection */
+  ::selection { @apply bg-primary/20 text-primary; }
+}
+
+/* ──────────────────────────────────────────────────────────
+   Component utilities
+────────────────────────────────────────────────────────── */
+@layer components {
+  /* Cockpit grid pattern — faint 20px grid on dark bg */
+  .cockpit-grid {
+    background-size: 20px 20px;
+    background-image:
+      linear-gradient(to right, #44474e 1px, transparent 1px),
+      linear-gradient(to bottom, #44474e 1px, transparent 1px);
+    opacity: 0.18;
+  }
+
+  /* Machined surface — slightly lighter than background */
+  .machined-surface {
+    background-color: #1a1d21;
+  }
+
+  /* 1px machined border */
+  .machined-border {
+    border: 1px solid #2d3139;
+  }
+
+  /* Gold inner-glow effect for primary buttons */
+  .btn-glow {
+    box-shadow: inset 0 0 10px rgba(212, 160, 86, 0.2);
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-surface-container-lowest border border-border-subtle rounded-md;
+  }
+
+  /* Panel header — bottom-bordered */
+  .panel-header {
+    @apply px-5 py-4 border-b border-border-subtle flex items-center justify-between bg-surface-container-low rounded-t-md;
+  }
+
+  /* Mono label — all-caps JetBrains Mono */
+  .label-caps {
+    @apply font-mono text-label-caps uppercase tracking-widest text-on-surface-variant;
+  }
+
+  /* Data value — large mono number */
+  .data-value {
+    @apply font-mono text-display-lg tabular-nums tracking-tight;
+  }
+
+  /* Nav item base */
+  .nav-item {
+    @apply flex items-center gap-3 py-2 px-4 text-on-surface-variant
+           hover:text-on-surface hover:bg-surface-container
+           transition-all duration-150 cursor-pointer select-none;
+  }
+
+  /* Active nav item */
+  .nav-item-active {
+    @apply flex items-center gap-3 py-2 px-4 text-primary
+           border-l-2 border-primary bg-surface-container-low
+           transition-all duration-150 cursor-pointer;
+  }
+
+  /* Status dot pulse */
+  .status-dot-healthy {
+    @apply w-2 h-2 rounded-full bg-success animate-pulse-dot;
+  }
+  .status-dot-error {
+    @apply w-2 h-2 rounded-full bg-risk-red animate-pulse-dot;
+  }
+  .status-dot-warning {
+    @apply w-2 h-2 rounded-full bg-risk-amber animate-pulse-dot;
+  }
+
+  /* Input base */
+  .input-base {
+    @apply w-full bg-surface-container border border-border-subtle rounded-md
+           px-3 py-2 font-mono text-mono-data text-on-surface
+           placeholder:text-on-surface-variant
+           focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30
+           transition-colors duration-150;
+  }
+
+  /* Material Symbol icon helper */
+  .icon {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    user-select: none;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────
+   Material Symbols variable font settings
+────────────────────────────────────────────────────────── */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+}

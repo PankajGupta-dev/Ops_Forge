@@ -1,0 +1,9 @@
+/* Global stylesheet placeholder for Tailwind and app-level styles. */
+
+:root {
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
