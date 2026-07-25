@@ -138,11 +138,11 @@ export const mockRecovery: RecoveryAction = {
   riskLevel: 'medium', status: 'pending',
   estimatedDuration: '8–12 minutes',
   steps: [
-    { id: 's1', order: 1, title: 'Scale down payment-processor to 0 replicas', command: 'kubectl scale deploy/payment-processor --replicas=0 -n production' },
-    { id: 's2', order: 2, title: 'Roll back image to v3.0.8', command: 'kubectl set image deploy/payment-processor app=registry/payment-processor:v3.0.8 -n production' },
-    { id: 's3', order: 3, title: 'Apply connection pool config patch', command: 'kubectl apply -f patches/payment-processor-pool-config.yaml' },
-    { id: 's4', order: 4, title: 'Scale back up to 3 replicas', command: 'kubectl scale deploy/payment-processor --replicas=3 -n production' },
-    { id: 's5', order: 5, title: 'Verify health checks pass (wait 120s)', command: 'kubectl rollout status deploy/payment-processor -n production --timeout=120s' },
+    { id: 's1', order: 1, title: 'Scale down payment-processor to 0 replicas', command: 'kubectl scale deploy/payment-processor --replicas=0 -n production', status: 'pending' },
+    { id: 's2', order: 2, title: 'Roll back image to v3.0.8', command: 'kubectl set image deploy/payment-processor app=registry/payment-processor:v3.0.8 -n production', status: 'pending' },
+    { id: 's3', order: 3, title: 'Apply connection pool config patch', command: 'kubectl apply -f patches/payment-processor-pool-config.yaml', status: 'pending' },
+    { id: 's4', order: 4, title: 'Scale back up to 3 replicas', command: 'kubectl scale deploy/payment-processor --replicas=3 -n production', status: 'pending' },
+    { id: 's5', order: 5, title: 'Verify health checks pass (wait 120s)', command: 'kubectl rollout status deploy/payment-processor -n production --timeout=120s', status: 'pending' },
   ],
 };
 

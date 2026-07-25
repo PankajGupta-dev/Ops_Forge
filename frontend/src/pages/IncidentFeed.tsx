@@ -1,7 +1,22 @@
 import { useState, useEffect } from 'react';
 import IncidentRow from '../components/incident/IncidentRow';
-import { incidentService } from '../services';
+import { knowledgeService } from '../services';
 import type { Incident } from '../types';
+
+/** Adapt a KnowledgeEntry / IncidentRecord into the Incident shape consumed by IncidentRow. */
+function adaptToIncident(entry: import('../types').KnowledgeEntry): Incident {
+  return {
+    id:          entry.id,
+    title:       entry.title,
+    description: entry.summary,
+    severity:    entry.severity,
+    status:      entry.hasPostmortem ? 'resolved' : 'investigating',
+    service:     entry.service,
+    environment: 'production',
+    openedAt:    entry.date,
+    tags:        entry.tags,
+  };
+}
 
 export default function IncidentFeed() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -10,7 +25,9 @@ export default function IncidentFeed() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
-    incidentService.getAll().then(setIncidents);
+    knowledgeService.getAll().then((entries) => {
+      setIncidents(entries.map(adaptToIncident));
+    });
   }, []);
 
   const filtered = incidents.filter((inc) => {

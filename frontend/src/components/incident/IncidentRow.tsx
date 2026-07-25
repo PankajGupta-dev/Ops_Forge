@@ -28,8 +28,8 @@ export default function IncidentRow({ incident }: IncidentRowProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 flex-wrap mb-1">
           <span className="font-mono text-mono-data text-on-surface-variant">{incident.id}</span>
-          <StatusBadge status={incident.severity} />
-          <StatusBadge status={incident.status} />
+          <StatusBadge status={incident.severity as any} />
+          <StatusBadge status={incident.status as any} />
         </div>
         <p className="font-body text-body-md text-on-surface font-medium truncate group-hover:text-primary transition-colors">
           {incident.title}

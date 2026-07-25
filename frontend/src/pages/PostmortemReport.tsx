@@ -10,13 +10,33 @@ export default function PostmortemReport() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [postmortem, setPostmortem] = useState<Postmortem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    knowledgeService.getPostmortem(id || 'pm-001').then(setPostmortem);
+    knowledgeService
+      .getPostmortem(id || 'pm-001')
+      .then(setPostmortem)
+      .catch((err) => setError(err?.message ?? 'Failed to load postmortem.'))
+      .finally(() => setLoading(false));
   }, [id]);
 
-  if (!postmortem) {
-    return <div className="p-8 text-center text-on-surface-variant font-mono">Loading postmortem report...</div>;
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-24 text-on-surface-variant font-mono">
+        <span className="material-symbols-outlined text-primary text-4xl animate-spin">autorenew</span>
+        Loading postmortem report…
+      </div>
+    );
+  }
+
+  if (error || !postmortem) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-risk-red font-mono mb-4">{error ?? 'Postmortem not found.'}</p>
+        <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/knowledge')}>Back to Knowledge Base</Button>
+      </div>
+    );
   }
 
   return (
@@ -48,7 +68,7 @@ export default function PostmortemReport() {
       <article className="bg-surface-container-lowest border border-border-subtle rounded-md p-8 flex flex-col gap-8">
         {/* Title Section */}
         <div className="border-b border-border-subtle pb-6">
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
             <StatusBadge status={postmortem.severity} size="md" />
             <span className="font-mono text-mono-data text-on-surface-variant">{postmortem.date}</span>
             <span className="font-mono text-mono-data text-primary">• Service: {postmortem.service}</span>
@@ -71,7 +91,7 @@ export default function PostmortemReport() {
         <section>
           <h2 className="font-headline text-headline-sm text-primary mb-2 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">impact_mine</span>
-            2. System & Business Impact
+            2. System &amp; Business Impact
           </h2>
           <div className="bg-surface-container p-4 rounded-md border border-border-subtle font-body text-body-md text-on-surface">
             {postmortem.impact}
@@ -82,7 +102,7 @@ export default function PostmortemReport() {
         <section>
           <h2 className="font-headline text-headline-sm text-primary mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">schedule</span>
-            3. Incident Sequence & Timeline
+            3. Incident Sequence &amp; Timeline
           </h2>
           <div className="bg-surface-container p-6 rounded-md border border-border-subtle">
             <Timeline events={postmortem.timeline} />
@@ -95,28 +115,37 @@ export default function PostmortemReport() {
             <span className="material-symbols-outlined text-[20px]">checklist</span>
             4. Preventative Action Items
           </h2>
-          <div className="flex flex-col gap-3 font-mono text-mono-data">
-            {postmortem.actionItems.map((item) => (
-              <div
-                key={item.id}
-                className="p-4 bg-surface-container border border-border-subtle rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2"
-              >
-                <div>
-                  <p className="text-on-surface font-medium">{item.title}</p>
-                  <p className="text-[11px] text-on-surface-variant">Owner: {item.owner} • Due: {item.dueDate}</p>
+          {postmortem.actionItems.length === 0 ? (
+            <p className="font-mono text-mono-data text-on-surface-variant">
+              No action items recorded for this incident.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3 font-mono text-mono-data">
+              {postmortem.actionItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-4 bg-surface-container border border-border-subtle rounded-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2"
+                >
+                  <div>
+                    <p className="text-on-surface font-medium">{item.title}</p>
+                    <p className="text-[11px] text-on-surface-variant">
+                      Owner: {item.owner} • Due: {item.dueDate}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={[
+                      'px-2 py-0.5 rounded text-[10px] uppercase font-bold',
+                      item.status === 'done'        ? 'bg-success/20 text-success' :
+                      item.status === 'in-progress' ? 'bg-primary/20 text-primary' :
+                                                      'bg-outline/20 text-outline',
+                    ].join(' ')}>
+                      {item.status}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={[
-                    'px-2 py-0.5 rounded text-[10px] uppercase font-bold',
-                    item.status === 'done' ? 'bg-success/20 text-success' :
-                    item.status === 'in-progress' ? 'bg-primary/20 text-primary' : 'bg-outline/20 text-outline'
-                  ].join(' ')}>
-                    {item.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       </article>
     </div>
