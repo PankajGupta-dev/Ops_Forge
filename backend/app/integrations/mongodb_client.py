@@ -36,7 +36,7 @@ class MongoDBAtlasClient:
     simulated storage fallback for offline demo resilience.
     """
 
-    def __init__(self, uri: Optional[str] = None, db_name: str = "opsforge", collection_name: str = "incidents"):
+    def __init__(self, uri: Optional[str] = None, db_name: str = "OpsForge", collection_name: str = "incidents"):
         self.uri = uri or getattr(settings, "MONGODB_ATLAS_URI", "")
         self.db_name = db_name
         self.collection_name = collection_name
@@ -76,6 +76,16 @@ class MongoDBAtlasClient:
             self.db = None
             self.collection = None
 
+    def ensure_connected(self) -> bool:
+        """Re-attempts MongoDB connection if not currently connected. Returns True if connected."""
+        if self.is_connected and self.collection is not None:
+            return True
+        # Only retry if we have a valid URI and pymongo is available
+        if PYMONGO_AVAILABLE and self.uri and "username:password" not in self.uri and "your_mongodb" not in self.uri:
+            logger.info(f"Attempting MongoDB reconnection to '{self.db_name}'...")
+            self._initialize_connection()
+        return self.is_connected
+
     def insert_incident(self, document: Dict[str, Any]) -> str:
         """
         Inserts a complete incident record document into MongoDB Atlas or memory store.
@@ -87,22 +97,25 @@ class MongoDBAtlasClient:
         if "created_at" not in document:
             document["created_at"] = datetime.utcnow().isoformat()
 
+        # Always maintain local memory store as instant fallback
+        self._in_memory_store[doc_id] = document
+
+        self.ensure_connected()
         if self.is_connected and self.collection is not None:
             try:
                 # Upsert into Atlas
                 self.collection.replace_one({"id": doc_id}, document, upsert=True)
-                logger.info(f"Inserted/updated incident '{doc_id}' in MongoDB Atlas.")
+                logger.info(f"Inserted/updated document '{doc_id}' in MongoDB Atlas database '{self.db_name}'.")
             except Exception as e:
-                logger.error(f"Failed inserting document into MongoDB Atlas: {e}. Storing in memory.")
-                self._in_memory_store[doc_id] = document
+                logger.error(f"Failed inserting document into MongoDB Atlas: {e}. Stored in memory fallback.")
         else:
-            self._in_memory_store[doc_id] = document
-            logger.info(f"Stored incident '{doc_id}' in local memory simulation store.")
+            logger.info(f"Stored document '{doc_id}' in local memory simulation store.")
 
         return doc_id
 
     def get_incident_by_id(self, incident_id: str) -> Optional[Dict[str, Any]]:
         """Retrieves a single incident document by ID."""
+        self.ensure_connected()
         if self.is_connected and self.collection is not None:
             try:
                 doc = self.collection.find_one({"id": incident_id}, {"_id": 0})

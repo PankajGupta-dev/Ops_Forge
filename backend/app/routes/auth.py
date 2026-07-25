@@ -86,6 +86,8 @@ async def github_callback(code: str = Query(..., description="Authorization code
     except ValueError as err:
         logger.error(f"OAuth Callback processing error: {err}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except HTTPException:
+        raise
     except Exception as err:
         logger.error(f"Unexpected error during OAuth callback: {err}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Authentication failed.")
@@ -127,6 +129,8 @@ async def get_user_repos(authorization: Optional[str] = Header(None)):
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching user repositories: {e}")
         raise HTTPException(
@@ -163,6 +167,8 @@ async def get_repo_branches(owner: str, repo: str, authorization: Optional[str] 
 
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching branches for {owner}/{repo}: {e}")
         raise HTTPException(

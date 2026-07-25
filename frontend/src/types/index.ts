@@ -64,14 +64,18 @@ export interface LogEntry {
 // ── Pipeline (matches backend orchestration.py) ───────────────────────────────
 
 export interface RepositoryItem {
-  id:            number;
-  name:          string;
-  fullName:      string;
-  defaultBranch: string;
-  visibility:    string;
-  cloneUrl:      string;
-  htmlUrl?:      string;
-  description?:  string;
+  id:              number;
+  name:            string;
+  fullName?:       string;
+  full_name?:      string;
+  defaultBranch?:  string;
+  default_branch?: string;
+  visibility:      string;
+  cloneUrl?:       string;
+  clone_url?:      string;
+  htmlUrl?:        string;
+  html_url?:       string;
+  description?:    string;
 }
 
 export interface BranchItem {

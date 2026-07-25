@@ -341,7 +341,14 @@ export const authService = {
         { id: 2, name: 'api-service', fullName: 'opsforge/api-service', defaultBranch: 'main', visibility: 'private', cloneUrl: '' },
       ];
     }
-    return apiFetch<import('../types').RepositoryItem[]>('/auth/repos');
+    const rawRepos = await apiFetch<any[]>('/auth/repos');
+    return rawRepos.map((r) => ({
+      ...r,
+      fullName: r.fullName || r.full_name || r.name,
+      defaultBranch: r.defaultBranch || r.default_branch || 'main',
+      cloneUrl: r.cloneUrl || r.clone_url || '',
+      htmlUrl: r.htmlUrl || r.html_url,
+    }));
   },
   async getBranches(owner: string, repo: string): Promise<import('../types').BranchItem[]> {
     if (USE_MOCKS) {

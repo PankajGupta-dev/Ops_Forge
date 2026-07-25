@@ -16,7 +16,7 @@ from app.schemas.auth import UserProfile, RepositoryItem, BranchItem
 logger = get_logger()
 
 # Dedicated MongoDB Atlas collection for OpsForge user accounts
-user_db_client = MongoDBAtlasClient(collection_name="users")
+user_db_client = MongoDBAtlasClient(db_name="OpsForge", collection_name="users")
 
 
 class AuthService:
@@ -97,7 +97,9 @@ class AuthService:
 
         # Store in MongoDB via MongoDBAtlasClient
         user_db_client.insert_incident(user_doc)
-        logger.info(f"Successfully saved/updated user {user_doc['username']} (ID: {github_id}) in MongoDB.")
+        logger.info(f"Successfully saved/updated user {user_doc['username']} (ID: {github_id}) in MongoDB. "
+                    f"Token stored: {'yes' if github_token else 'no'}, "
+                    f"DB connected: {user_db_client.is_connected}")
 
         return UserProfile(
             github_id=github_id,
@@ -109,16 +111,37 @@ class AuthService:
         )
 
     @classmethod
-    def get_user_by_github_id(cls, github_id: int) -> Optional[Dict[str, Any]]:
+    def get_user_by_github_id(cls, github_id: Any) -> Optional[Dict[str, Any]]:
         """Retrieves user document from MongoDB Atlas or fallback memory store."""
         doc_id = f"user-{github_id}"
+        gid_int = int(github_id) if str(github_id).isdigit() else github_id
+        query = {"$or": [{"id": doc_id}, {"github_id": gid_int}, {"github_id": str(github_id)}]}
+
+        logger.info(f"Looking up user by github_id={github_id} (type={type(github_id).__name__}), "
+                    f"doc_id={doc_id}, DB connected: {user_db_client.is_connected}")
+
+        user_db_client.ensure_connected()
         if user_db_client.is_connected and user_db_client.collection is not None:
             try:
-                return user_db_client.collection.find_one({"id": doc_id})
+                user_doc = user_db_client.collection.find_one(query)
+                if user_doc:
+                    has_token = bool(user_doc.get("github_token"))
+                    logger.info(f"Found user '{user_doc.get('username')}' in MongoDB Atlas. "
+                                f"Has github_token: {has_token}")
+                    return user_doc
+                else:
+                    logger.warning(f"User not found in MongoDB Atlas for query: {query}")
             except Exception as e:
                 logger.error(f"MongoDB search failed: {e}")
 
-        return user_db_client._in_memory_store.get(doc_id)
+        # Check in-memory fallback
+        mem_doc = user_db_client._in_memory_store.get(doc_id)
+        if mem_doc:
+            logger.info(f"Found user in in-memory store. Has github_token: {bool(mem_doc.get('github_token'))}")
+        else:
+            logger.warning(f"User not found in in-memory store either. "
+                           f"Memory store keys: {list(user_db_client._in_memory_store.keys())}")
+        return mem_doc
 
     @staticmethod
     def create_jwt_token(github_id: int, username: str) -> str:

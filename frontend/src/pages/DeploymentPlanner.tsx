@@ -44,8 +44,10 @@ export default function DeploymentPlanner() {
       .then((data) => {
         setRepos(data);
         if (data.length > 0) {
-          setSelectedRepo(data[0].fullName);
-          setSelectedBranch(data[0].defaultBranch || 'main');
+          const firstRepoName = data[0].fullName || data[0].full_name || data[0].name;
+          const firstRepoBranch = data[0].defaultBranch || data[0].default_branch || 'main';
+          setSelectedRepo(firstRepoName);
+          setSelectedBranch(firstRepoBranch);
         }
       })
       .catch((err) => {
@@ -155,11 +157,14 @@ export default function DeploymentPlanner() {
                 ) : repos.length === 0 ? (
                   <option value="opsforge/demo-app">opsforge/demo-app (Default)</option>
                 ) : (
-                  repos.map((r) => (
-                    <option key={r.id} value={r.fullName}>
-                      {r.fullName} ({r.visibility})
-                    </option>
-                  ))
+                  repos.map((r) => {
+                    const repoFullName = r.fullName || r.full_name || r.name;
+                    return (
+                      <option key={r.id} value={repoFullName}>
+                        {repoFullName} ({r.visibility})
+                      </option>
+                    );
+                  })
                 )}
               </select>
             </div>

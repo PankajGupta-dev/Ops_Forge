@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-# Load .env if present
-load_dotenv()
+# Load .env — search upward through parent directories to find the project-root .env
+load_dotenv(find_dotenv(usecwd=True))
 
 class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
