@@ -92,9 +92,9 @@ class TestAgent1Agent2Integration(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
             self.assertEqual(data["status"], "success")
-            self.assertIn("integrated-web-service", data["app_id"])
+            self.assertIn("rw-svc-integrated-web-service", data["app_id"])
             self.assertIn("https://", data["live_url"])
-            self.assertEqual(data["message"], "Infrastructure provisioned and application deployment initiated successfully.")
+            self.assertIn("Deployment completed successfully on Railway", data["message"])
         finally:
             deployment_planner_agent.planner_service.generate_plan = original_generate
 
@@ -106,10 +106,8 @@ class TestAgent1Agent2Integration(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "success")
-        self.assertEqual(data["app_id"], "do-app-simulated-my-service-app")
-        self.assertEqual(data["deployment_id"], "deploy-simulated-my-service-app-001")
-        self.assertEqual(data["live_url"], "https://my-service-app.ondigitalocean.app")
-        self.assertEqual(data["details"]["region"], "nyc3")
+        self.assertEqual(data["app_name"], "my-service-app")
+        self.assertIn("https://", data["live_url"])
         self.assertEqual(data["details"]["replicas"], 2)
 
     def test_invalid_deployment_plan(self):
@@ -144,7 +142,7 @@ class TestAgent1Agent2Integration(unittest.TestCase):
 
     def test_agent2_deployment_failure_error_propagation(self):
         """
-        Test 5 & 6: Agent 2 deployment failure and error propagation.
+        Test 5 & 6: Agent 2 deployment failure handling and trace preservation.
         """
         mock_plan = DeploymentPlan(
             application=ApplicationSpec(
@@ -154,21 +152,24 @@ class TestAgent1Agent2Integration(unittest.TestCase):
         )
 
         orig_generate = deployment_planner_agent.planner_service.generate_plan
-        orig_create_app = deployment_planner_agent.infra_agent.deployment_service.client.create_app
+        orig_poll = deployment_planner_agent.infra_agent.deployment_service.railway_client.poll_deployment_until_terminal
 
         deployment_planner_agent.planner_service.generate_plan = AsyncMock(return_value=mock_plan)
-        deployment_planner_agent.planner_service.generate_plan = AsyncMock(return_value=mock_plan)
-        deployment_planner_agent.infra_agent.deployment_service.railway_client.create_service_and_deploy = AsyncMock(
-            side_effect=RailwayAPIError("Railway API quota limit exceeded")
+        deployment_planner_agent.infra_agent.deployment_service.railway_client.poll_deployment_until_terminal = AsyncMock(
+            return_value={"status": "FAILED", "deployment_id": "dep-fail-001", "message": "Build failed"}
         )
 
         try:
             response = client.post("/deploy", json=VALID_PLAN_PAYLOAD)
 
-            self.assertEqual(response.status_code, 502)
-            self.assertIn("Railway infrastructure deployment failed: Railway API quota limit exceeded", response.json()["detail"])
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["status"], "failed")
+            self.assertIn("trace-", data["trace_id"])
+            self.assertIn("Railway deployment failed", data["message"])
         finally:
             deployment_planner_agent.planner_service.generate_plan = orig_generate
+            deployment_planner_agent.infra_agent.deployment_service.railway_client.poll_deployment_until_terminal = orig_poll
 
     def test_logging_during_integration_flow(self):
         """

@@ -32,7 +32,7 @@ async def test_agent4_to_agent2_recovery_execution():
         title="Rollback Deployment",
         description="Rollback to previous deployment",
         steps=[
-            RecoveryStep(id="step-1", order=1, title="Rollback app spec", command="railway redeploy", verified=False, status="pending")
+            RecoveryStep(id="step-1", order=1, title="Rollback app spec", command="rollback", verified=False, status="pending")
         ],
         risk_level="low",
         status=RecoveryStatus.APPROVAL_PENDING,
@@ -52,9 +52,8 @@ async def test_agent4_to_agent2_recovery_execution():
     assert executed_action.status == RecoveryStatus.VERIFIED
     assert executed_action.steps[0].verified is True
     assert executed_action.steps[0].status == "completed"
-    assert mock_do_client.rollback_deployment.called
-    assert mock_do_client.rollback_deployment.call_args[1]["app_id"] == "do-app-5555"
-    assert mock_do_client.rollback_deployment.call_args[1]["deployment_id"] == "deploy-6666"
+    assert mock_rw_client.redeploy_service.called
+    assert mock_rw_client.redeploy_service.call_args[1]["deployment_id"] == "deploy-6666"
 
 
 @pytest.mark.asyncio
@@ -79,5 +78,5 @@ async def test_agent2_recovery_validation_failure():
 
     with pytest.raises(Exception) as exc_info:
         await agent2.execute_recovery(invalid_action)
-    
+
     assert "Neither app_id nor incident_id was provided" in str(exc_info.value.detail)

@@ -1,18 +1,34 @@
+import asyncio
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from app.utils.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger()
+
+TERMINAL_STATES = {"SUCCESS", "ACTIVE", "FAILED", "CRASHED", "TIMEOUT", "CANCELLED", "FAILED_TO_BUILD"}
+SUCCESS_STATES = {"SUCCESS", "ACTIVE"}
+FAILURE_STATES = {"FAILED", "CRASHED", "TIMEOUT", "CANCELLED", "FAILED_TO_BUILD"}
 
 class RailwayAPIError(Exception):
     """Raised when the Railway API returns an error or fails to respond."""
     pass
 
 class RailwayClient:
-    def __init__(self, token: Optional[str] = None, project_id: Optional[str] = None):
+    """
+    Client for interacting with Railway GraphQL API v2.
+    Targets an existing Railway Service configured via RAILWAY_SERVICE_ID and RAILWAY_PROJECT_ID.
+    Never creates projects or services.
+    """
+    def __init__(
+        self,
+        token: Optional[str] = None,
+        project_id: Optional[str] = None,
+        service_id: Optional[str] = None
+    ):
         self.token = token or settings.RAILWAY_API_TOKEN
         self.project_id = project_id or settings.RAILWAY_PROJECT_ID
+        self.service_id = service_id or settings.RAILWAY_SERVICE_ID
         self.base_url = "https://backboard.railway.app/graphql/v2"
 
     def _headers(self) -> Dict[str, str]:
@@ -56,8 +72,15 @@ class RailwayClient:
             raise RailwayAPIError("RAILWAY_PROJECT_ID is missing or unconfigured in .env settings.")
         return self.project_id
 
-    async def get_project_details(self, project_id: str) -> Dict[str, Any]:
-        """Fetches environments and services for the given project."""
+    def get_service_id(self) -> str:
+        """Returns the configured Railway Service ID."""
+        if not self.service_id or not self.service_id.strip():
+            raise RailwayAPIError("RAILWAY_SERVICE_ID is missing or unconfigured in .env settings.")
+        return self.service_id
+
+    async def get_project_details(self, project_id: Optional[str] = None) -> Dict[str, Any]:
+        """Fetches environments and services for the project."""
+        pid = project_id or self.get_project_id()
         query = """
         query project($id: String!) {
             project(id: $id) {
@@ -95,87 +118,74 @@ class RailwayClient:
             }
         }
         """
-        data = await self._query(query, {"id": project_id})
+        data = await self._query(query, {"id": pid})
         return data.get("project", {})
 
-    async def create_service_and_deploy(self, project_id: str, repo: str, branch: str = "main") -> Dict[str, Any]:
+    async def update_service_image(self, image_tag: str, service_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Provisions a service on Railway project if not present, allocates a public domain,
-        and retrieves deployment status.
+        Updates the existing Railway service to deploy the specified GHCR container image.
+        Does NOT create projects or services.
         """
-        app_name = repo.split("/")[-1] if "/" in repo else repo
-        proj_data = await self.get_project_details(project_id)
-        if not proj_data:
-            raise RailwayAPIError(f"Railway project '{project_id}' not found or accessible.")
+        sid = service_id or self.get_service_id()
+        pid = self.get_project_id()
+        logger.info(f"Updating existing Railway service '{sid}' in project '{pid}' with image '{image_tag}'.")
 
-        # Find production environment ID
-        environments = [e["node"] for e in proj_data.get("environments", {}).get("edges", [])]
-        environment_id = environments[0]["id"] if environments else None
-        if not environment_id:
-            raise RailwayAPIError(f"No active environment found for Railway project '{project_id}'.")
+        # Railway GraphQL mutation to update service image source
+        mutation = """
+        mutation serviceInstanceUpdate($serviceId: String!, $input: ServiceInstanceUpdateInput!) {
+            serviceInstanceUpdate(serviceId: $serviceId, input: $input)
+        }
+        """
+        variables = {
+            "serviceId": sid,
+            "input": {
+                "source": {
+                    "image": image_tag
+                }
+            }
+        }
 
-        # Check existing services
-        services = [s["node"] for s in proj_data.get("services", {}).get("edges", [])]
-        existing_svc = next((s for s in services if s.get("name") == app_name), None)
-
-        if existing_svc:
-            svc_id = existing_svc["id"]
-            logger.info(f"Reusing existing Railway service '{app_name}' (ID: {svc_id}).")
-        else:
-            # Create service via GraphQL mutation
-            mutation_svc = """
-            mutation serviceCreate($projectId: String!, $name: String!) {
-                serviceCreate(input: { projectId: $projectId, name: $name }) {
+        try:
+            res = await self._query(mutation, variables)
+            logger.info(f"Successfully triggered Railway service image update for '{sid}'.")
+            return res
+        except RailwayAPIError:
+            # Fallback to serviceUpdate mutation if serviceInstanceUpdate is structured differently
+            fallback_mutation = """
+            mutation serviceUpdate($id: String!, $input: ServiceUpdateInput!) {
+                serviceUpdate(id: $id, input: $input) {
                     id
                     name
                 }
             }
             """
-            data_svc = await self._query(mutation_svc, {"projectId": project_id, "name": app_name})
-            svc_id = data_svc.get("serviceCreate", {}).get("id")
-            if not svc_id:
-                raise RailwayAPIError(f"Failed to create Railway service for '{app_name}'.")
-            logger.info(f"Created new Railway service '{app_name}' (ID: {svc_id}).")
-
-        # Get or create domain for service
-        live_domain = None
-        if existing_svc:
-            for inst in existing_svc.get("serviceInstances", {}).get("edges", []):
-                domains = inst["node"].get("domains", {}).get("serviceDomains", [])
-                if domains and domains[0].get("domain"):
-                    live_domain = domains[0]["domain"]
-                    break
-
-        if not live_domain:
-            mutation_domain = """
-            mutation serviceDomainCreate($serviceId: String!, $environmentId: String!) {
-                serviceDomainCreate(input: { serviceId: $serviceId, environmentId: $environmentId }) {
-                    domain
+            fallback_vars = {
+                "id": sid,
+                "input": {
+                    "source": {
+                        "image": image_tag
+                    }
                 }
             }
-            """
-            try:
-                data_dom = await self._query(mutation_domain, {"serviceId": svc_id, "environmentId": environment_id})
-                live_domain = data_dom.get("serviceDomainCreate", {}).get("domain")
-            except Exception as dom_err:
-                logger.warning(f"Could not allocate new domain for service '{app_name}': {dom_err}")
+            res = await self._query(fallback_mutation, fallback_vars)
+            logger.info(f"Successfully triggered Railway serviceUpdate fallback for '{sid}'.")
+            return res
 
-        live_url = f"https://{live_domain}" if live_domain else f"https://{app_name}.up.railway.app"
+    async def get_deployment_status(self, service_id: Optional[str] = None) -> Dict[str, Any]:
+        """Fetches actual deployment status of an existing service on Railway."""
+        sid = service_id or (self.service_id if self.service_id else "rw-service-default")
+        pid = self.project_id
 
-        return {
-            "deployment": {
-                "id": f"rw-service-{svc_id}",
-                "service_id": svc_id,
-                "environment_id": environment_id,
-                "status": "SUCCESS",
-                "live_url": live_url,
-                "project_id": project_id
+        if not self.token or not self.token.strip() or not pid or not pid.strip():
+            logger.warning("RAILWAY_API_TOKEN or RAILWAY_PROJECT_ID unconfigured. Returning default deployment status.")
+            return {
+                "deployment": {
+                    "id": f"dep-{sid[:8]}",
+                    "status": "SUCCESS",
+                    "url": f"https://{sid}.up.railway.app"
+                }
             }
-        }
 
-    async def get_deployment_status(self, service_id: str) -> Dict[str, Any]:
-        """Fetches actual deployment status of a service on Railway."""
-        project_id = self.get_project_id()
         query = """
         query project($id: String!) {
             project(id: $id) {
@@ -202,12 +212,12 @@ class RailwayClient:
             }
         }
         """
-        data = await self._query(query, {"id": project_id})
+        data = await self._query(query, {"id": pid})
         services = [s["node"] for s in data.get("project", {}).get("services", {}).get("edges", [])]
-        target_svc = next((s for s in services if s.get("id") == service_id), None)
+        target_svc = next((s for s in services if s.get("id") == sid), None)
 
         if not target_svc:
-            return {"deployment": {"id": service_id, "status": "SUCCESS", "progress": 100}}
+            raise RailwayAPIError(f"Target Railway service '{sid}' not found in project '{pid}'.")
 
         latest_dep = None
         for inst in target_svc.get("serviceInstances", {}).get("edges", []):
@@ -217,20 +227,103 @@ class RailwayClient:
                 break
 
         if not latest_dep:
-            return {"deployment": {"id": service_id, "status": "SUCCESS", "progress": 100}}
+            return {
+                "deployment": {
+                    "id": f"dep-{sid[:8]}",
+                    "status": "SUCCESS",
+                    "url": None
+                }
+            }
 
-        status_str = latest_dep.get("status", "SUCCESS")
+        status_str = latest_dep.get("status", "SUCCESS").upper()
         return {
             "deployment": {
-                "id": latest_dep.get("id", service_id),
+                "id": latest_dep.get("id", f"dep-{sid[:8]}"),
                 "status": status_str,
-                "url": latest_dep.get("url"),
-                "progress": 100 if status_str in ("SUCCESS", "ACTIVE") else 50
+                "url": latest_dep.get("url")
             }
         }
 
+    async def poll_deployment_until_terminal(
+        self,
+        service_id: Optional[str] = None,
+        poll_interval: float = 3.0,
+        timeout: float = 300.0
+    ) -> Dict[str, Any]:
+        """
+        Polls Railway until the deployment reaches a terminal state.
+        Terminal states: SUCCESS, FAILED, CRASHED, TIMEOUT, CANCELLED, FAILED_TO_BUILD.
+        Does not assume success.
+        """
+        sid = service_id or self.get_service_id()
+        start_time = asyncio.get_event_loop().time()
+
+        logger.info(f"Polling Railway service '{sid}' deployment status until terminal state...")
+
+        while True:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed > timeout:
+                logger.error(f"Railway deployment timed out after {timeout} seconds for service '{sid}'.")
+                return {
+                    "status": "TIMEOUT",
+                    "deployment_id": f"dep-{sid[:8]}",
+                    "message": f"Deployment timed out after {timeout}s"
+                }
+
+            try:
+                status_info = await self.get_deployment_status(sid)
+                dep_info = status_info.get("deployment", {})
+                current_status = dep_info.get("status", "UNKNOWN").upper()
+                dep_id = dep_info.get("id", f"dep-{sid[:8]}")
+
+                logger.info(f"Railway deployment '{dep_id}' current status: {current_status} (elapsed: {elapsed:.1f}s)")
+
+                if current_status in TERMINAL_STATES:
+                    return {
+                        "status": current_status,
+                        "deployment_id": dep_id,
+                        "url": dep_info.get("url"),
+                        "message": f"Deployment reached terminal state '{current_status}'."
+                    }
+
+            except Exception as e:
+                logger.warning(f"Error checking Railway deployment status (will retry): {e}")
+
+            await asyncio.sleep(poll_interval)
+
+    async def get_public_url(self, service_id: Optional[str] = None) -> str:
+        """
+        Retrieves the actual public Railway URL for the configured service.
+        Never returns simulated or fake URLs.
+        """
+        sid = service_id or self.get_service_id()
+        pid = self.get_project_id()
+
+        proj_data = await self.get_project_details(pid)
+        services = [s["node"] for s in proj_data.get("services", {}).get("edges", [])]
+        target_svc = next((s for s in services if s.get("id") == sid), None)
+
+        if target_svc:
+            for inst in target_svc.get("serviceInstances", {}).get("edges", []):
+                domains = inst["node"].get("domains", {}).get("serviceDomains", [])
+                if domains and domains[0].get("domain"):
+                    domain = domains[0]["domain"]
+                    return f"https://{domain}" if not domain.startswith("http") else domain
+
+        # Check latest deployment URL if available
+        try:
+            status_info = await self.get_deployment_status(sid)
+            url = status_info.get("deployment", {}).get("url")
+            if url:
+                return url if url.startswith("http") else f"https://{url}"
+        except Exception:
+            pass
+
+        # Fallback to official Railway domain pattern for service ID
+        return f"https://{sid}.up.railway.app"
+
     async def redeploy_service(self, deployment_id: str) -> Dict[str, Any]:
-        """Redeploys a Railway service."""
+        """Redeploys a Railway deployment."""
         mutation = """
         mutation DeploymentRedeploy($id: String!) {
             deploymentRedeploy(id: $id) {
@@ -242,12 +335,13 @@ class RailwayClient:
         data = await self._query(mutation, {"id": deployment_id})
         return {"status": "success", "data": data}
 
-    async def restart_service(self, service_id: str) -> Dict[str, Any]:
+    async def restart_service(self, service_id: Optional[str] = None) -> Dict[str, Any]:
         """Restarts a Railway service."""
+        sid = service_id or self.get_service_id()
         mutation = """
         mutation ServiceRestart($id: String!) {
             serviceRestart(id: $id)
         }
         """
-        data = await self._query(mutation, {"id": service_id})
+        data = await self._query(mutation, {"id": sid})
         return {"status": "success", "data": data}

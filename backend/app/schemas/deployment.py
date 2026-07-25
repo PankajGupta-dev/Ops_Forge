@@ -73,7 +73,17 @@ class DeploymentResult(BaseModel):
     live_url: Optional[str] = Field(None, description="Public application endpoint URL")
     message: str = Field(..., description="Summary or status message")
     created_at: Optional[str] = Field(None, description="UTC ISO-8601 creation timestamp")
+    build_duration: Optional[float] = Field(None, description="Container image build duration in seconds")
+    deployment_duration: Optional[float] = Field(None, description="Railway service deployment duration in seconds")
     details: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional deployment metadata")
+
+    @property
+    def deployment_status(self) -> str:
+        return self.status
+
+    @property
+    def deployment_url(self) -> Optional[str]:
+        return self.live_url
 
 class DeployRequest(BaseModel):
     description: str = Field(..., description="User deployment intent")
