@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ShaderCanvas from '../components/ui/ShaderCanvas';
 import Divider from '../components/ui/Divider';
+import { API_BASE_URL } from '../services/api';
 
 const CONNECTIONS = [
   { id: 'github', icon: 'code',  label: 'Connect GitHub repository',    sub: 'Source control & CI/CD' },
@@ -9,8 +11,16 @@ const CONNECTIONS = [
 
 export default function Login() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
-  const handleConnect = (id: string) => {
+  const handleConnect = async (id: string) => {
+    if (id === 'github') {
+      setLoading(true);
+      // Redirect browser directly to backend GitHub OAuth login endpoint
+      window.location.href = `${API_BASE_URL}/auth/github/login?redirect=true`;
+      return;
+    }
+
     console.log(`Connecting ${id}…`);
     navigate('/dashboard');
   };
@@ -57,10 +67,12 @@ export default function Login() {
           {CONNECTIONS.map((conn) => (
             <button
               key={conn.id}
+              disabled={loading}
               onClick={() => handleConnect(conn.id)}
               className="w-full flex items-center gap-4 py-3.5 px-4 bg-surface-container-low
                          border border-border-subtle rounded-md text-on-surface
                          hover:border-primary hover:shadow-gold-glow-sm hover:bg-surface-container
+                         disabled:opacity-50 disabled:cursor-not-allowed
                          transition-all duration-150 group"
             >
               <div className="w-9 h-9 rounded-md bg-surface-container border border-border-subtle
@@ -68,14 +80,16 @@ export default function Login() {
                               transition-colors">
                 <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary
                                  text-[18px] transition-colors">
-                  {conn.icon}
+                  {conn.id === 'github' && loading ? 'autorenew' : conn.icon}
                 </span>
               </div>
               <div className="text-left">
                 <p className="font-body text-body-md text-on-surface group-hover:text-primary transition-colors">
                   {conn.label}
                 </p>
-                <p className="font-mono text-mono-data text-on-surface-variant">{conn.sub}</p>
+                <p className="font-mono text-mono-data text-on-surface-variant">
+                  {conn.id === 'github' && loading ? 'Redirecting to GitHub…' : conn.sub}
+                </p>
               </div>
               <span className="material-symbols-outlined text-outline text-[16px] ml-auto
                                group-hover:text-primary transition-colors">

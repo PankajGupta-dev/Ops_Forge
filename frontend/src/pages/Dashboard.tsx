@@ -15,6 +15,15 @@ export default function Dashboard() {
   const [allIncidents, setAllIncidents] = useState<KnowledgeEntry[]>([]);
 
   useEffect(() => {
+    // Extract JWT token if redirected from GitHub OAuth callback
+    const searchParams = new URLSearchParams(window.location.search);
+    const token = searchParams.get('token');
+    if (token) {
+      localStorage.setItem('opsforge_token', token);
+      // Clean query string from browser URL bar without reload
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     metricsService.getMetrics().then(setMetrics);
     deploymentService.getAll().then((data) => setDeployments(data.slice(0, 5)));
     knowledgeService.getAll().then(setAllIncidents);
