@@ -17,6 +17,7 @@ class Settings:
     MONGODB_ATLAS_URI: str = os.getenv("MONGODB_ATLAS_URI", "")
 
     # GitHub OAuth & Security Configuration
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     GITHUB_CLIENT_ID: str = os.getenv("GITHUB_CLIENT_ID", "")
     GITHUB_CLIENT_SECRET: str = os.getenv("GITHUB_CLIENT_SECRET", "")
     GITHUB_CALLBACK_URL: str = os.getenv("GITHUB_CALLBACK_URL", "http://localhost:8000/auth/github/callback")
