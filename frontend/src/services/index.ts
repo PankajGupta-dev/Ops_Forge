@@ -350,6 +350,56 @@ export const knowledgeService = {
       return Promise.resolve({ ...mockPostmortem, id });
     }
   },
+
+  async storeApprovedSolution(payload: {
+    app_name: string;
+    deployment_id: string;
+    severity: string;
+    root_cause: string;
+    causal_chain: string[];
+    summary: string;
+    selected_recommendation: string;
+  }) {
+    if (USE_MOCKS) return Promise.resolve({ success: true, incident_id: 'INC-APPROVED' });
+    return apiFetch<any>('/memory/store', {
+      method: 'POST',
+      body: JSON.stringify({
+        deployment_id: payload.deployment_id,
+        app_name: payload.app_name,
+        severity: payload.severity,
+        root_cause: payload.root_cause,
+        causal_chain: payload.causal_chain,
+        affected_signals: [],
+        summary: `${payload.summary} | Selected Solution: ${payload.selected_recommendation}`,
+        outcome_success: true,
+      }),
+    });
+  },
+};
+
+export const monitoringService = {
+  async start(serviceName: string, baseUrl: string) {
+    if (USE_MOCKS) {
+      return Promise.resolve({
+        service_name: serviceName,
+        base_url: baseUrl,
+        health_status: 'healthy',
+        incident_detected: false,
+        detection_reasons: [],
+        logs: [],
+        metrics: [],
+        events: [],
+        rca_report: null,
+      });
+    }
+    return apiFetch<any>('/monitor/start', {
+      method: 'POST',
+      body: JSON.stringify({
+        service_name: serviceName,
+        base_url: baseUrl,
+      }),
+    });
+  },
 };
 
 /** Convert a live IncidentRecord into the Postmortem display format. */

@@ -44,7 +44,16 @@ async def store_incident(payload: StoreIncidentRequest):
         logger.info(f"API POST /memory/store: Storing incident for app '{payload.app_name}'")
         
         # Construct synthetic IncidentReport for the agent method
-        from app.schemas.incident import IncidentStatus, Severity
+        from app.schemas.incident import IncidentStatus, Severity, RecoveryRecommendation, RecoveryCategory
+        recs = [
+            RecoveryRecommendation(
+                rank=1,
+                category=RecoveryCategory.CONFIG_PATCH,
+                action=f"Approved solution: {payload.root_cause}",
+                rationale="Operator verified and approved solution",
+                risk="low"
+            )
+        ]
         report = IncidentReport(
             deployment_id=payload.deployment_id,
             app_name=payload.app_name,
@@ -53,7 +62,7 @@ async def store_incident(payload: StoreIncidentRequest):
             root_cause=payload.root_cause,
             causal_chain=payload.causal_chain or [payload.root_cause],
             affected_signals=payload.affected_signals,
-            recommendations=[],
+            recommendations=recs,
             confidence=0.92,
             summary=payload.summary
         )

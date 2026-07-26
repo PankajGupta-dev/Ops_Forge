@@ -7,6 +7,7 @@ from app.routes.recovery import router as recovery_router
 from app.routes.memory import router as memory_router
 from app.routes.pipeline import router as pipeline_router
 from app.routes.auth import router as auth_router
+from app.routes.monitor import router as monitor_router
 
 app = FastAPI(
     title="OpsForge Backend API",
@@ -36,6 +37,7 @@ app.include_router(deploy_router)
 app.include_router(incidents_router)
 app.include_router(recovery_router)
 app.include_router(memory_router)
+app.include_router(monitor_router)
 
 # E2E Orchestration Pipeline
 app.include_router(pipeline_router)

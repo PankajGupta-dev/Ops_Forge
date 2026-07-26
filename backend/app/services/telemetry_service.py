@@ -198,3 +198,67 @@ def correlate(request: IncidentAnalysisRequest, detection_reasons: List[str]) ->
         timeline=entries,
         metric_summary=_build_metric_summary(request.metrics),
     )
+
+
+# ---------------------------------------------------------------------------
+# Modular Real Telemetry Collector (Consumes target base_url)
+# ---------------------------------------------------------------------------
+
+async def collect_real_telemetry(base_url: str) -> tuple[List[LogEntry], List[MetricPoint], List[DeploymentEvent], str]:
+    """
+    Collect real HTTP telemetry from a target pre-deployed application URL.
+    Probes standard endpoints (/health, root /), measures response times,
+    collects HTTP logs/errors, and returns (logs, metrics, events, health_status).
+    No random numbers. No fake incidents.
+    """
+    import time
+    import httpx
+
+    logs: List[LogEntry] = []
+    metrics: List[MetricPoint] = []
+    events: List[DeploymentEvent] = []
+    now = datetime.now(timezone.utc)
+    health_status = "healthy"
+
+    target = base_url.rstrip("/")
+    probe_urls = [f"{target}/health", f"{target}/"]
+
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        tested_url = probe_urls[0]
+        start_t = time.perf_counter()
+        try:
+            res = await client.get(tested_url)
+            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+            metrics.append(MetricPoint(timestamp=now, name="p99_latency_ms", value=round(elapsed_ms, 2), unit="ms"))
+
+            if res.status_code == 200:
+                health_status = "healthy"
+                logs.append(LogEntry(timestamp=now, level="INFO", message=f"Health probe HTTP 200 OK from {tested_url} ({elapsed_ms:.1f}ms)", source="http_probe"))
+                events.append(DeploymentEvent(timestamp=now, event_type="HEALTH_CHECK_PASSED", description=f"HTTP 200 OK from {tested_url}", metadata={"status_code": 200, "latency_ms": elapsed_ms}))
+            else:
+                # Try fallback root /
+                start_t2 = time.perf_counter()
+                res2 = await client.get(probe_urls[1])
+                elapsed_ms2 = (time.perf_counter() - start_t2) * 1000.0
+                if res2.status_code == 200:
+                    health_status = "healthy"
+                    logs.append(LogEntry(timestamp=now, level="INFO", message=f"Health probe HTTP 200 OK from {probe_urls[1]} ({elapsed_ms2:.1f}ms)", source="http_probe"))
+                    events.append(DeploymentEvent(timestamp=now, event_type="HEALTH_CHECK_PASSED", description=f"HTTP 200 OK from {probe_urls[1]}", metadata={"status_code": 200, "latency_ms": elapsed_ms2}))
+                else:
+                    health_status = "unhealthy"
+                    err_msg = f"HTTP {res.status_code} {res.reason_phrase} from {tested_url}: {res.text[:300]}"
+                    logs.append(LogEntry(timestamp=now, level="ERROR", message=err_msg, source="http_probe"))
+                    events.append(DeploymentEvent(timestamp=now, event_type="HEALTH_CHECK_FAILED", description=f"HTTP {res.status_code} from {tested_url}", metadata={"status_code": res.status_code, "body": res.text[:200]}))
+                    metrics.append(MetricPoint(timestamp=now, name="error_rate", value=1.0, unit="ratio"))
+
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+            health_status = "unhealthy"
+            err_msg = f"Connection failed to {tested_url}: {str(exc)}"
+            logs.append(LogEntry(timestamp=now, level="ERROR", message=err_msg, source="network"))
+            logs.append(LogEntry(timestamp=now, level="FATAL", message=f"Service at {target} unreachable. {exc}", source="network"))
+            events.append(DeploymentEvent(timestamp=now, event_type="HEALTH_CHECK_FAILED", description=f"Connection refused / timeout to {target}", metadata={"error": str(exc)}))
+            metrics.append(MetricPoint(timestamp=now, name="error_rate", value=1.0, unit="ratio"))
+
+    return logs, metrics, events, health_status
+

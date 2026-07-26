@@ -30,12 +30,16 @@ export default function RecoveryApproval() {
     setIsApproving(true);
     setError(null);
     try {
-      await recoveryService.approveAction(action.id, {
-        approved: true,
-        approver: 'Operator',
-        approvalMode: 'ui',
+      await knowledgeService.storeApprovedSolution({
+        app_name: action.title || 'Monitored Service',
+        deployment_id: action.id,
+        severity: action.riskLevel || 'high',
+        root_cause: action.description || 'Application failure detected and analyzed.',
+        causal_chain: action.steps ? action.steps.map(s => s.title) : [action.description],
+        summary: action.description,
+        selected_recommendation: action.title,
       });
-      navigate(`/incidents/${id}/verify`);
+      navigate('/knowledge');
     } catch (err: any) {
       setError(err?.message ?? 'Approval failed. Please try again.');
       setIsApproving(false);
@@ -43,20 +47,7 @@ export default function RecoveryApproval() {
   };
 
   const handleReject = async () => {
-    if (!action) return;
-    setIsRejecting(true);
-    setError(null);
-    try {
-      await recoveryService.approveAction(action.id, {
-        approved: false,
-        approver: 'Operator',
-        approvalMode: 'ui',
-      });
-      navigate('/incidents');
-    } catch (err: any) {
-      setError(err?.message ?? 'Rejection failed. Please try again.');
-      setIsRejecting(false);
-    }
+    navigate('/incidents');
   };
 
   const toggleAudio = () => {
@@ -90,8 +81,6 @@ export default function RecoveryApproval() {
 
   if (!action) return null;
 
-  const audioUrl = getAudioStreamUrl(action.id);
-
   return (
     <div className="flex flex-col gap-6">
       {/* Breadcrumb */}
@@ -118,20 +107,19 @@ export default function RecoveryApproval() {
 
         <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
           <Button
-            variant="danger"
+            variant="ghost"
             icon="close"
-            loading={isRejecting}
             onClick={handleReject}
           >
-            Reject Strategy
+            Cancel
           </Button>
           <Button
             variant="primary"
-            icon="play_arrow"
+            icon="check_circle"
             loading={isApproving}
             onClick={handleApprove}
           >
-            Approve &amp; Execute
+            Approve Solution
           </Button>
         </div>
       </div>

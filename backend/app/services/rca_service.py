@@ -124,10 +124,11 @@ class RCAService:
             "",
             "=== TASK ===",
             "Produce a complete IncidentReport JSON object. Required fields:",
-            "  deployment_id, app_name, incident_status, severity, root_cause,",
-            "  causal_chain (list), affected_signals (list), contributing_factors (list),",
-            "  recommendations (list of ranked RecoveryRecommendation objects),",
-            "  confidence (float 0.0-1.0), summary (string), warnings (list).",
+            "  deployment_id (string), app_name (string), incident_status ('open'|'investigating'|'resolved'),",
+            "  severity ('critical'|'high'|'medium'|'low'|'info'), root_cause (string),",
+            "  causal_chain (list of strings), affected_signals (list of strings), contributing_factors (list of strings),",
+            "  recommendations (list of objects with fields: rank (int), category ('rollback'|'restart'|'scale_up'|'config_patch'|'manual'), action (string), rationale (string), risk (string)),",
+            "  confidence (float 0.0-1.0), summary (string), warnings (list of strings).",
             "Incorporate insights from Agent 5 historical matches if relevant to recommend proven recovery actions.",
         ]
 
