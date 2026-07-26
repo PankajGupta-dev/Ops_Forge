@@ -437,7 +437,9 @@ export default function DeploymentPlanner() {
               </Button>
             </div>
           </form>
-        </div>
+        </>
+      )}
+    </div>
 
         {/* ── Right Panel: AI Incident Commander Results or Recent History ────────────────────────── */}
         <div className="lg:col-span-7 flex flex-col gap-6">

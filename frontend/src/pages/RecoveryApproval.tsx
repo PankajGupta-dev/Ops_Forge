@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { recoveryService } from '../services';
+import { recoveryService, knowledgeService } from '../services';
 import { getAudioStreamUrl } from '../services/api';
 import type { RecoveryAction } from '../types';
 
@@ -80,6 +80,8 @@ export default function RecoveryApproval() {
   }
 
   if (!action) return null;
+
+  const audioUrl = getAudioStreamUrl(action.id);
 
   return (
     <div className="flex flex-col gap-6">
