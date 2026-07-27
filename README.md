@@ -2,11 +2,21 @@
 
 **OpsForge** is an autonomous AI platform engineer — a multi-agent system that takes a deployment description and Dockerfile, and runs the complete lifecycle end-to-end: from deployment planning and infrastructure provisioning, through root cause analysis and voice-narrated recovery, to searchable knowledge memory.
 
-> Built with FastAPI · React · Gemini · Railway · GHCR · MongoDB Atlas · ElevenLabs
+> Built with FastAPI · React · Groq (LLaMA 3.3 70B) · Railway · MongoDB Atlas
 
 ---
 
+## 🎬 Demo
+
+[![OpsForge – AI Incident Commander Demo](https://img.youtube.com/vi/BnBVd1FOT70/maxresdefault.jpg)](https://youtu.be/BnBVd1FOT70?si=dDIAQx8G73gfxgah)
+
+> *Click the thumbnail above to watch the full demo on YouTube.*
+
+---
+
+
 ## Table of Contents
+
 
 - [Overview](#overview)
 - [Architecture](#architecture)
